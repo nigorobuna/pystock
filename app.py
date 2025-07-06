@@ -12,6 +12,7 @@ from urllib.parse import urlparse, parse_qs
 import os # osライブラリを追加
 import yaml # yamlライブラリを追加
 from yaml.loader import SafeLoader # SafeLoaderを追加
+import av # カメラのフレームを扱うために追加
 
 # --- データベースの準備（変更なし） ---
 database.init_db()
@@ -151,10 +152,27 @@ if st.session_state["authentication_status"]:
         if 'scanned_code' not in st.session_state:
             st.session_state.scanned_code = None
 
-        def qr_code_callback(frame):
+        # ▼▼▼ QRコードリーダーのコールバック関数を修正 ▼▼▼
+        def qr_code_callback(frame: av.VideoFrame) -> av.VideoFrame:
             img = frame.to_ndarray(format="bgr24")
+
+            # --- 映像にガイドを描画 ---
+            height, width, _ = img.shape
+            box_size = 250 # ガイドの四角のサイズ
+            x_start = (width - box_size) // 2
+            y_start = (height - box_size) // 2
+            x_end = x_start + box_size
+            y_end = y_start + box_size
+            
+            # 四角い枠を描画
+            cv2.rectangle(img, (x_start, y_start), (x_end, y_end), (0, 255, 0), 2)
+            # テキストを描画
+            cv2.putText(img, "QR code wo wakunai ni awasete kudasai", (x_start, y_start - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            
+            # --- QRコードの検出とデコード ---
             qr_detector = cv2.QRCodeDetector()
             data, bbox, straight_qrcode = qr_detector.detectAndDecode(img)
+            
             if data:
                 try:
                     parsed_url = urlparse(data)
@@ -163,8 +181,11 @@ if st.session_state["authentication_status"]:
                         st.session_state.scanned_code = query_params['product_code'][0]
                 except Exception:
                     pass
-            return frame
+            
+            # 変更した画像を返す
+            return av.VideoFrame.from_ndarray(img, format="bgr24")
 
+        # カメラコンポーネントの表示
         webrtc_streamer(
             key="qr-scanner",
             mode=WebRtcMode.SENDONLY,
@@ -205,7 +226,7 @@ else:
 
     with login_tab:
         with st.form("login_form"):
-            email = st.text_input("ユーザーネーム")
+            email = st.text_input("メールアドレス")
             password = st.text_input("パスワード", type="password")
             submitted = st.form_submit_button("ログイン")
             if submitted:
@@ -215,13 +236,13 @@ else:
                     st.session_state.name = user['name']
                     st.rerun()
                 else:
-                    st.error("ユーザーネームまたはパスワードが間違っています。")
+                    st.error("メールアドレスまたはパスワードが間違っています。")
 
     with register_tab:
-        st.info('【ご注意】\n\n- **お名前:** ログイン後に表示される名前です。\n- **ユーザーネーム:** ログインIDとして使います。\n- **パスワード:** 6文字以上で設定してください。')
+        st.info('【ご注意】\n\n- **お名前:** ログイン後に表示される名前です。\n- **メールアドレス:** ログインIDとして使います。\n- **パスワード:** 6文字以上で設定してください。')
         with st.form("registration_form", clear_on_submit=True):
             name_reg = st.text_input("お名前")
-            email_reg = st.text_input("ユーザーネーム")
+            email_reg = st.text_input("メールアドレス")
             password_reg = st.text_input("パスワード", type="password")
             password_rep = st.text_input("パスワード（確認用）", type="password")
             reg_submitted = st.form_submit_button("登録する")
@@ -232,7 +253,7 @@ else:
                 elif password_reg != password_rep:
                     st.error("パスワードが一致しません。")
                 elif database.get_user(email_reg):
-                    st.error("このユーザーネームは既に使用されています。")
+                    st.error("このメールアドレスは既に使用されています。")
                 else:
                     hashed_password = bcrypt.hashpw(password_reg.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
                     database.add_user(name_reg, email_reg, hashed_password)
