@@ -36,8 +36,13 @@ if "credentials_usernames_json" in st.secrets:
             'admin_password': st.secrets.get('admin_password')
         }
     except Exception as e:
-        st.error(f"Secretsの読み込み中にエラーが発生しました: {e}")
-        st.stop() # エラーがあれば、ここでアプリの実行を停止
+        # ▼▼▼ デバッグ用の詳細なエラー表示をコメントアウト ▼▼▼
+        # st.error(f"Secretsの読み込み中にエラーが発生しました: {e}")
+        # st.stop() # エラーがあれば、ここでアプリの実行を停止
+        
+        # ▼▼▼ 代わりに、ユーザー向けの一般的なエラーメッセージを表示 ▼▼▼
+        st.error("アプリケーションの設定読み込み中にエラーが発生しました。管理者に連絡してください。")
+        st.stop()
 else:
     # ローカル環境：config.yamlファイルから読み込む
     with open('config.yaml', 'r', encoding='utf-8') as file:
@@ -126,6 +131,12 @@ if st.session_state.get("authentication_status"):
                 img_bytes = buf.getvalue()
                 st.image(img_bytes, caption=f"{product_for_qr} のQRコード", width=200)
                 st.info("この画像を右クリックして保存し、印刷して使用してください。")
+        
+        # ▼▼▼ ここにスプレッドシートへのリンクを追加 ▼▼▼
+        st.divider()
+        st.subheader('データベース本体')
+        st.link_button("Googleスプレッドシートで在庫を直接編集する", "https://docs.google.com/spreadsheets/d/1kFw-RGElLZOLtMmijTRExBAKcSJ2yiqLR0BuqAF8G1c/edit")
+
 
     else:
         # --- 通常ユーザーのメインページ（在庫利用画面） ---
