@@ -12,17 +12,21 @@ import bcrypt
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
 import cv2
 from urllib.parse import urlparse, parse_qs
-import os # osライブラリをインポート
+import os
+import json # JSONを扱うために追加
 
 #---データベースの準備---
 database.init_db()
 
-#--- ▼▼▼ ユーザー認証の設定を、ファイルパスで判定する、最も確実な方法に変更 ▼▼▼ ---
+#--- ▼▼▼ ユーザー認証の設定を、ライブラリの作法に合わせて修正 ▼▼▼ ---
 # Streamlit Cloudのサーバーに特有のパスが存在するかで環境を判定
 if os.path.exists('/mount/src/pystock'):
     # クラウド環境：Secretsから設定を読み込む
+    # usernamesはJSON文字列として読み込まれるため、辞書に変換する
+    usernames_dict = json.loads(st.secrets["credentials"]["usernames"])
+    
     config = {
-        'credentials': st.secrets['credentials'],
+        'credentials': {'usernames': usernames_dict}, # 変換した辞書をセット
         'cookie': st.secrets['cookie'],
         'admin_password': st.secrets.get('admin_password')
     }
