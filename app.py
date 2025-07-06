@@ -13,7 +13,6 @@ import os # osライブラリを追加
 import yaml # yamlライブラリを追加
 from yaml.loader import SafeLoader # SafeLoaderを追加
 import av # カメラのフレームを扱うために追加
-import threading # スレッドを扱うために追加
 
 # --- データベースの準備（変更なし） ---
 database.init_db()
@@ -104,11 +103,8 @@ if st.session_state["authentication_status"]:
         st.subheader('使用履歴')
         all_history = database.get_all_history()
         if all_history:
-            # ▼▼▼ 表示したい列だけを選んでから、名前を付けるように修正 ▼▼▼
             df_full_history = pd.DataFrame(all_history)
-            # 表示したい列を、正しい順番で指定
             df_display_history = df_full_history[['timestamp', 'user_name', 'name', 'change_type', 'quantity']]
-            # 表示用のDataFrameの列名を日本語に設定
             df_display_history.columns = ['日時', '使用者', '品目名', '操作', '数量']
             st.dataframe(df_display_history, use_container_width=True)
         else:
@@ -150,12 +146,11 @@ if st.session_state["authentication_status"]:
         
         st.header('使用登録')
         
-        # ▼▼▼ QRコードリーダーのロジックを、より安全な形に修正 ▼▼▼
-        lock = threading.Lock()
-        qr_code_data = None
+        if 'scanned_code' not in st.session_state:
+            st.session_state.scanned_code = None
 
-        def qr_code_callback(frame: av.VideoFrame):
-            nonlocal qr_code_data
+        # ▼▼▼ QRコードリーダーのコールバック関数を、nonlocalを使わない安全な形に戻しました ▼▼▼
+        def qr_code_callback(frame: av.VideoFrame) -> av.VideoFrame:
             img = frame.to_ndarray(format="bgr24")
 
             # ガイドの描画
@@ -170,12 +165,18 @@ if st.session_state["authentication_status"]:
             data, _, _ = qr_detector.detectAndDecode(img)
             
             if data:
-                with lock:
-                    qr_code_data = data
+                try:
+                    parsed_url = urlparse(data)
+                    query_params = parse_qs(parsed_url.query)
+                    if 'product_code' in query_params:
+                        # 読み取ったコードをsession_stateに直接書き込む
+                        st.session_state.scanned_code = query_params['product_code'][0]
+                except Exception:
+                    pass
             
             return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-        webrtc_ctx = webrtc_streamer(
+        webrtc_streamer(
             key="qr-scanner",
             mode=WebRtcMode.SENDONLY,
             video_frame_callback=qr_code_callback,
@@ -184,21 +185,16 @@ if st.session_state["authentication_status"]:
         )
 
         st.markdown("---")
-
-        if webrtc_ctx.state.playing and qr_code_data:
-            try:
-                parsed_url = urlparse(qr_code_data)
-                query_params = parse_qs(parsed_url.query)
-                if 'product_code' in query_params:
-                    st.session_state.scanned_code = query_params['product_code'][0]
-                    # 読み取り成功後、即座にリロードして表示を確定させる
-                    st.rerun()
-            except Exception:
-                st.error("不正なQRコードです。")
-
+        
         active_product_code = st.session_state.get("scanned_code")
 
         if active_product_code:
+            # 読み取りに成功したら、即座にリロードして表示を確定させる
+            # これにより、スマホでの動作が安定する
+            if st.session_state.get('last_scanned_code') != active_product_code:
+                st.session_state.last_scanned_code = active_product_code
+                st.rerun()
+
             product = database.get_product_by_code(active_product_code)
             if not product:
                 st.error(f"商品コード '{active_product_code}' が見つかりません。")
@@ -210,6 +206,7 @@ if st.session_state["authentication_status"]:
                         database.update_stock(product['id'], -1)
                         database.add_stock_history(product['id'], name, '使用', 1)
                         st.session_state.scanned_code = None
+                        st.session_state.last_scanned_code = None
                         st.success(f"「{product['name']}」の使用を記録しました。")
                         st.balloons()
                         st.rerun()
@@ -226,7 +223,7 @@ else:
 
     with login_tab:
         with st.form("login_form"):
-            email = st.text_input("メールアドレス")
+            email = st.text_input("ユーザーネーム")
             password = st.text_input("パスワード", type="password")
             submitted = st.form_submit_button("ログイン")
             if submitted:
@@ -236,13 +233,13 @@ else:
                     st.session_state.name = user['name']
                     st.rerun()
                 else:
-                    st.error("メールアドレスまたはパスワードが間違っています。")
+                    st.error("ユーザーネームまたはパスワードが間違っています。")
 
     with register_tab:
-        st.info('【ご注意】\n\n- **お名前:** ログイン後に表示される名前です。\n- **メールアドレス:** ログインIDとして使います。\n- **パスワード:** 6文字以上で設定してください。')
+        st.info('【ご注意】\n\n- **お名前:** ログイン後に表示される名前です。\n- **ユーザーネーム:** ログインIDとして使います。\n- **パスワード:** 6文字以上で設定してください。')
         with st.form("registration_form", clear_on_submit=True):
             name_reg = st.text_input("お名前")
-            email_reg = st.text_input("メールアドレス")
+            email_reg = st.text_input("ユーザーネーム")
             password_reg = st.text_input("パスワード", type="password")
             password_rep = st.text_input("パスワード（確認用）", type="password")
             reg_submitted = st.form_submit_button("登録する")
@@ -253,7 +250,7 @@ else:
                 elif password_reg != password_rep:
                     st.error("パスワードが一致しません。")
                 elif database.get_user(email_reg):
-                    st.error("このメールアドレスは既に使用されています。")
+                    st.error("このユーザーネームは既に使用されています。")
                 else:
                     hashed_password = bcrypt.hashpw(password_reg.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
                     database.add_user(name_reg, email_reg, hashed_password)
