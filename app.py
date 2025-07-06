@@ -12,13 +12,15 @@ import bcrypt
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
 import cv2
 from urllib.parse import urlparse, parse_qs
+import os # osライブラリをインポート
 
 #---データベースの準備---
 database.init_db()
 
-#--- ▼▼▼ ユーザー認証の設定を、より確実な方法で判定 ▼▼▼ ---
-# StreamlitのSecretsに 'credentials' が存在するかで、クラウド環境かどうかを判断
-if "credentials" in st.secrets:
+#--- ▼▼▼ ユーザー認証の設定を、os環境変数で判定する、より確実な方法に変更 ▼▼▼ ---
+# Streamlit Cloud上では、特定の環境変数が設定されることを利用する
+# os.environ.get('STREAMLIT_SERVER_PORT') は、ローカルではNone、クラウドではポート番号を返す
+if os.environ.get('STREAMLIT_SERVER_PORT'):
     # クラウド環境：Secretsから設定を読み込む
     config = {
         'credentials': st.secrets['credentials'],
@@ -191,6 +193,6 @@ else:
             st.error(e)
     
     if st.session_state.get("authentication_status") is False:
-        st.error('メールアドレスまたはパスワードが間違っています。再度入力してください。')
+        st.error('ユーザーネームまたはパスワードが間違っています。再度入力してください。')
     elif st.session_state.get("authentication_status") is None:
-        st.warning('メールアドレスとパスワードを入力してログインしてください。')
+        st.warning('ユーザーネームとパスワードを入力してログインしてください。')
