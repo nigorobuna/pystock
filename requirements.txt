@@ -5,3 +5,5 @@ bcrypt
 qrcode[pil]
 streamlit-webrtc
 opencv-python
+gspread
+google-auth-oauthlib
