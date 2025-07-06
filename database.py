@@ -16,7 +16,7 @@ def get_gspread_client():
         creds_dict = json.loads(creds_json_str)
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     else:
-        local_creds_path = "ou-yasudalab-stock-14b75180fae9.json" # あなたのローカルの認証ファイル名
+        local_creds_path = "ou-yasudalab-stock-14b75180fae9.json"
         if not os.path.exists(local_creds_path):
             st.error(f"ローカルに認証ファイルが見つかりません: {local_creds_path}")
             st.stop()
@@ -24,23 +24,23 @@ def get_gspread_client():
     client = gspread.authorize(creds)
     return client
 
-SPREADSHEET_ID = "1kFw-RGElLZOLtMmijTRExBAKcSJ2yiqLR0BuqAF8G1c" # あなたのスプレッドシートID
+SPREADSHEET_ID = "1kFw-RGElLZOLtMmijTRExBAKcSJ2yiqLR0BuqAF8G1c"
 try:
     gspread_client = get_gspread_client()
     spreadsheet = gspread_client.open_by_key(SPREADSHEET_ID)
     products_sheet = spreadsheet.worksheet("products")
     history_sheet = spreadsheet.worksheet("stock_history")
-    users_sheet = spreadsheet.worksheet("users") # ▼▼▼ usersシートを追加 ▼▼▼
+    users_sheet = spreadsheet.worksheet("users")
 except Exception as e:
     st.error(f"スプレッドシートへの接続に失敗しました: {e}")
     st.stop()
 
-# --- ▼▼▼ ユーザー管理用の新しい関数 ▼▼▼ ---
+# --- ユーザー管理用の関数 ---
 
 def get_user(email):
     """emailを元にユーザー情報を取得する"""
     try:
-        cell = users_sheet.find(email, in_column=2) # emailはB列
+        cell = users_sheet.find(email, in_column=2)
         if cell:
             headers = users_sheet.row_values(1)
             user_data = users_sheet.row_values(cell.row)
@@ -51,11 +51,12 @@ def get_user(email):
 
 def add_user(name, email, hashed_password):
     """新しいユーザーをusersシートに追加する"""
-    new_row = [name, email, hashed_password]
+    # ▼▼▼ 念のため、すべての値を文字列に変換する処理を追加 ▼▼▼
+    new_row = [str(name), str(email), str(hashed_password)]
     users_sheet.append_row(new_row, value_input_option='USER_ENTERED')
 
 
-# --- ▼▼▼ これまでの在庫管理用の関数（変更なし） ▼▼▼ ---
+# --- 在庫管理用の関数（変更なし） ---
 
 def init_db():
     pass
