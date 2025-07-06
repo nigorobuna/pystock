@@ -1,9 +1,6 @@
 # Streamlitアプリケーションのメインファイル
 # -*- coding: utf-8 -*-
 import streamlit as st
-import streamlit_authenticator as stauth
-import yaml
-from yaml.loader import SafeLoader
 import database
 import pandas as pd
 import qrcode
@@ -12,54 +9,47 @@ import bcrypt
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
 import cv2
 from urllib.parse import urlparse, parse_qs
-import os
-import json # JSONを扱うために追加
+import time
+import os # osライブラリを追加
+import yaml # yamlライブラリを追加
+from yaml.loader import SafeLoader # SafeLoaderを追加
 
-#---データベースの準備---
+# --- データベースの準備（変更なし） ---
 database.init_db()
 
-#--- ▼▼▼ ユーザー認証の設定を、平坦なSecretsから再構築する方法に変更 ▼▼▼ ---
-# StreamlitのSecretsに、クラウド環境用のキーが存在するかで判定
-if "credentials_usernames_json" in st.secrets:
-    # クラウド環境：Secretsから平坦なキーで設定を読み込む
-    try:
-        usernames_dict = json.loads(st.secrets["credentials_usernames_json"])
-        
-        # Python側で、ライブラリが期待するconfig辞書の形を再構築する
-        config = {
-            'credentials': {'usernames': usernames_dict},
-            'cookie': {
-                'name': st.secrets['cookie_name'],
-                'key': st.secrets['cookie_key'],
-                'expiry_days': int(st.secrets['cookie_expiry_days']) # 文字列から整数に変換
-            },
-            'admin_password': st.secrets.get('admin_password')
-        }
-    except Exception as e:
-        # ▼▼▼ デバッグ用の詳細なエラー表示をコメントアウト ▼▼▼
-        # st.error(f"Secretsの読み込み中にエラーが発生しました: {e}")
-        # st.stop() # エラーがあれば、ここでアプリの実行を停止
-        
-        # ▼▼▼ 代わりに、ユーザー向けの一般的なエラーメッセージを表示 ▼▼▼
-        st.error("アプリケーションの設定読み込み中にエラーが発生しました。管理者に連絡してください。")
-        st.stop()
+# --- ページタイトルの設定 ---
+st.set_page_config(page_title="安田研究室 消耗品管理システム", layout="wide")
+
+
+# --- ▼▼▼ 管理者パスワードを安全に読み込むロジックを追加 ▼▼▼ ---
+admin_hashed_password = None
+# クラウド環境かどうかを判定
+if "google_creds_json" in st.secrets:
+    admin_hashed_password = st.secrets.get("admin_password")
 else:
-    # ローカル環境：config.yamlファイルから読み込む
-    with open('config.yaml', 'r', encoding='utf-8') as file:
-        config = yaml.load(file, Loader=SafeLoader)
+    # ローカル環境
+    if os.path.exists('config.yaml'):
+        with open('config.yaml', 'r', encoding='utf-8') as file:
+            config = yaml.load(file, Loader=SafeLoader)
+        admin_hashed_password = config.get("admin_password")
 
-authenticator = stauth.Authenticate(
-    config['credentials'],
-    config['cookie']['name'],
-    config['cookie']['key'],
-    config['cookie']['expiry_days']
-)
+# --- ▼▼▼ 認証ロジックを自作 ▼▼▼ ---
 
-#---ログイン成功時の処理---
-if st.session_state.get("authentication_status"):
+# ログイン状態の初期化
+if 'authentication_status' not in st.session_state:
+    st.session_state.authentication_status = None
+if 'name' not in st.session_state:
+    st.session_state.name = None
+
+# --- ログイン成功時のメイン処理 ---
+if st.session_state["authentication_status"]:
     name = st.session_state["name"]
     st.sidebar.write(f'ようこそ、{name}さん！')
-    authenticator.logout('Logout', 'sidebar')
+    if st.sidebar.button('ログアウト'):
+        # セッション情報をクリアしてリロード
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
 
     # --- 管理者メニューのパスワード認証 ---
     st.sidebar.divider()
@@ -97,10 +87,7 @@ if st.session_state.get("authentication_status"):
         st.subheader('現在の在庫一覧')
         if all_products_list:
             df_products = pd.DataFrame(all_products_list)
-            # ▼▼▼ 'created_at' を追加して、列の数を6つに合わせる ▼▼▼
             df_products.columns = ['id', 'product_code', 'name', 'unit', 'current_stock', 'created_at']
-            
-            # 表示したい列だけを抜き出す
             df_display = df_products[['product_code', 'name', 'current_stock', 'unit']]
             df_display.columns = ['商品コード', '品目名', '現在庫数', '単位']
             st.dataframe(df_display, use_container_width=True)
@@ -131,93 +118,95 @@ if st.session_state.get("authentication_status"):
                 img_bytes = buf.getvalue()
                 st.image(img_bytes, caption=f"{product_for_qr} のQRコード", width=200)
                 st.info("この画像を右クリックして保存し、印刷して使用してください。")
-        
-        # ▼▼▼ ここにスプレッドシートへのリンクを追加 ▼▼▼
-        st.divider()
-        st.subheader('データベース本体')
-        st.link_button("Googleスプレッドシートで在庫を直接編集する", "https://docs.google.com/spreadsheets/d/1kFw-RGElLZOLtMmijTRExBAKcSJ2yiqLR0BuqAF8G1c/edit")
-
 
     else:
         # --- 通常ユーザーのメインページ（在庫利用画面） ---
         st.sidebar.subheader("管理者用")
         admin_password_input = st.sidebar.text_input("管理者パスワードを入力", type="password", key="admin_pass")
         if st.sidebar.button("認証"):
-            stored_hashed_password = config.get('admin_password', '').encode('utf-8')
-            if stored_hashed_password and bcrypt.checkpw(admin_password_input.encode('utf-8'), stored_hashed_password):
+            # ▼▼▼ bcryptを使った安全なパスワードチェックに修正 ▼▼▼
+            if admin_hashed_password and bcrypt.checkpw(admin_password_input.encode('utf-8'), admin_hashed_password.encode('utf-8')):
                 st.session_state.admin_unlocked = True
                 st.rerun()
             else:
                 st.sidebar.error("パスワードが違います。")
-
-        # QRコードスキャナ
+        
+        st.title('安田研究室　消耗品管理システム')
         st.header('使用登録')
-        def qr_code_callback(frame):
-            img = frame.to_ndarray(format="bgr24")
-            qr_detector = cv2.QRCodeDetector()
-            data, bbox, straight_qrcode = qr_detector.detectAndDecode(img)
-            if data:
-                try:
-                    parsed_url = urlparse(data)
-                    query_params = parse_qs(parsed_url.query)
-                    if 'product_code' in query_params:
-                        st.session_state.scanned_code = query_params['product_code'][0]
-                except Exception:
-                    pass
-            return frame
+        # ... (在庫利用画面のコードは変更なし) ...
+        query_params = st.query_params
+        product_code_from_url = query_params.get("product_code")
 
-        webrtc_streamer(
-            key="qr-scanner",
-            mode=WebRtcMode.SENDONLY,
-            video_frame_callback=qr_code_callback,
-            media_stream_constraints={"video": {"facingMode": "environment"}, "audio": False},
-            async_processing=True,
-        )
-        st.markdown("---")
-        
-        if 'scanned_code' not in st.session_state:
-            st.session_state.scanned_code = None
-        
-        active_product_code = st.session_state.scanned_code or st.query_params.get("product_code")
+        if 'processed_code' not in st.session_state:
+            st.session_state.processed_code = None
 
-        if active_product_code:
-            product = database.get_product_by_code(active_product_code)
+        if product_code_from_url and st.session_state.processed_code == product_code_from_url:
+            st.success("使用記録が正常に処理されました。")
+            st.markdown('[🏠 ホームに戻る](app.py)')
+        elif product_code_from_url:
+            product = database.get_product_by_code(product_code_from_url)
             if not product:
-                st.error(f"商品コード '{active_product_code}' が見つかりません。")
+                st.error(f"商品コード '{product_code_from_url}' が見つかりません。")
+                st.markdown('[🏠 ホームに戻る](app.py)')
             else:
                 st.subheader(f"品目名: {product['name']}")
                 st.metric(label="現在の在庫数", value=f"{product['current_stock']} {product['unit']}")
                 if product['current_stock'] > 0:
-                    if st.button(f"「{product['name']}」を1つ使用する", type="primary", use_container_width=True):
+                    if st.button(f"「{product['name']}」を1つ使用する", type="primary"):
                         database.update_stock(product['id'], -1)
                         database.add_stock_history(product['id'], name, '使用', 1)
-                        st.session_state.scanned_code = None
-                        st.success(f"「{product['name']}」の使用を記録しました。")
-                        st.balloons()
+                        st.session_state.processed_code = product_code_from_url
                         st.rerun()
                 else:
                     st.error(f"「{product['name']}」の在庫がありません。")
+                    st.markdown('[🏠 ホームに戻る](app.py)')
         else:
-            st.info("上のカメラでQRコードをスキャンしてください。")
+            st.info("QRコードを読み取って、商品コードを取得してください。")
+            st.session_state.processed_code = None
 
+
+# --- ログイン前の処理 ---
 else:
-    # --- ログインしていない場合の処理 ---
     st.title('安田研究室　消耗品管理システム')
     login_tab, register_tab = st.tabs(["ログイン", "新規登録"])
 
+    # --- ログインタブ ---
     with login_tab:
-        authenticator.login(location='main')
+        with st.form("login_form"):
+            email = st.text_input("メールアドレス")
+            password = st.text_input("パスワード", type="password")
+            submitted = st.form_submit_button("ログイン")
+            if submitted:
+                user = database.get_user(email)
+                if user and bcrypt.checkpw(password.encode('utf-8'), user['hashed_password'].encode('utf-8')):
+                    st.session_state.authentication_status = True
+                    st.session_state.name = user['name']
+                    st.rerun()
+                else:
+                    st.error("メールアドレスまたはパスワードが間違っています。")
+
+    # --- 新規登録タブ ---
     with register_tab:
-        st.info('【ご注意】\n\n- **お名前:** ログイン後に表示される名前です。（例: 山田 太郎）\n- **ユーザー名:** ログインIDとして使用します。**半角英数字**で入力してください。（例: t_yamada）\n- **Eメール:** 連絡可能なメールアドレスを入力してください。')
-        try:
-            if authenticator.register_user(location='main'):
-                st.success('ユーザー登録が成功しました。ログインタブからログインしてください。')
-                with open('config.yaml', 'w', encoding='utf-8') as file:
-                    yaml.dump(config, file, default_flow_style=False)
-        except Exception as e:
-            st.error(e)
-    
-    if st.session_state.get("authentication_status") is False:
-        st.error('ユーザーネームまたはパスワードが間違っています。再度入力してください。')
-    elif st.session_state.get("authentication_status") is None:
-        st.warning('ユーザーネームとパスワードを入力してログインしてください。')
+        st.info('【ご注意】\n\n- **お名前:** ログイン後に表示される名前です。\n- **メールアドレス:** ログインIDとして使います。\n- **パスワード:** 6文字以上で設定してください。')
+        with st.form("registration_form", clear_on_submit=True):
+            name_reg = st.text_input("お名前")
+            email_reg = st.text_input("メールアドレス")
+            password_reg = st.text_input("パスワード", type="password")
+            password_rep = st.text_input("パスワード（確認用）", type="password")
+            reg_submitted = st.form_submit_button("登録する")
+            
+            if reg_submitted:
+                if not (name_reg and email_reg and password_reg and password_rep):
+                    st.warning("すべての項目を入力してください。")
+                elif password_reg != password_rep:
+                    st.error("パスワードが一致しません。")
+                elif database.get_user(email_reg):
+                    st.error("このメールアドレスは既に使用されています。")
+                else:
+                    hashed_password = bcrypt.hashpw(password_reg.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                    database.add_user(name_reg, email_reg, hashed_password)
+                    
+                    # ▼▼▼ ここを修正 ▼▼▼
+                    st.toast('ユーザー登録が完了しました！ログイン画面に切り替わります。')
+                    time.sleep(2) # 2秒待ってメッセージを見せる
+                    st.rerun()
