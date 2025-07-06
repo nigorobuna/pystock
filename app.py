@@ -186,7 +186,7 @@ if st.session_state["authentication_status"]:
 
         st.markdown("---")
         
-        active_product_code = st.session_state.get("scanned_code")
+        active_product_code = st.session_state.get("scanned_code") or st.query_params.get("product_code")
 
         if active_product_code:
             # 読み取りに成功したら、即座にリロードして表示を確定させる
