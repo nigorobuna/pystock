@@ -12,22 +12,21 @@ import bcrypt
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
 import cv2
 from urllib.parse import urlparse, parse_qs
-import os # 環境変数を読み込むために追加
 
 #---データベースの準備---
 database.init_db()
 
-#--- ▼▼▼ ユーザー認証の設定をデプロイ環境に対応させる ▼▼▼ ---
-# Streamlit Community Cloudでデプロイされているかをチェック
-if 'STREAMLIT_SHARING_MODE' in os.environ:
-    # クラウド環境では、StreamlitのSecrets機能から設定を読み込む
+#--- ▼▼▼ ユーザー認証の設定を、より確実な方法で判定 ▼▼▼ ---
+# StreamlitのSecretsに 'credentials' が存在するかで、クラウド環境かどうかを判断
+if "credentials" in st.secrets:
+    # クラウド環境：Secretsから設定を読み込む
     config = {
         'credentials': st.secrets['credentials'],
         'cookie': st.secrets['cookie'],
-        'admin_password': st.secrets.get('admin_password') # admin_passwordは任意なので.get()を使う
+        'admin_password': st.secrets.get('admin_password')
     }
 else:
-    # ローカル環境では、従来通りconfig.yamlファイルから読み込む
+    # ローカル環境：config.yamlファイルから読み込む
     with open('config.yaml', 'r', encoding='utf-8') as file:
         config = yaml.load(file, Loader=SafeLoader)
 
