@@ -197,22 +197,25 @@ if st.session_state["authentication_status"]:
             if not product:
                 st.error(f"商品コード '{active_product_code}' が見つかりません。")
             else:
-                # ▼▼▼ 在庫数を安全に整数に変換 ▼▼▼
                 try:
                     current_stock = int(product['current_stock'])
                 except (ValueError, TypeError):
-                    current_stock = 0 # 変換できない場合は0として扱う
+                    current_stock = 0
 
                 st.subheader(f"品目名: {product['name']}")
                 st.metric(label="現在の在庫数", value=f"{current_stock} {product['unit']}")
                 
-                # ▼▼▼ 整数に変換した値で比較 ▼▼▼
                 if current_stock > 0:
                     if st.button(f"「{product['name']}」を1つ使用する", type="primary", use_container_width=True):
                         database.update_stock(product['id'], -1)
                         database.add_stock_history(product['id'], name, '使用', 1)
+                        
+                        # ▼▼▼ 状態を完全にリセットする ▼▼▼
                         st.session_state.scanned_code = None
                         st.session_state.last_scanned_code = None
+                        if "product_code" in st.query_params:
+                            st.query_params.clear() # URLのパラメータもクリアする
+                        
                         st.success(f"「{product['name']}」の使用を記録しました。")
                         st.balloons()
                         st.rerun()
@@ -229,7 +232,7 @@ else:
 
     with login_tab:
         with st.form("login_form"):
-            email = st.text_input("ユーザーネーム")
+            email = st.text_input("メールアドレス")
             password = st.text_input("パスワード", type="password")
             submitted = st.form_submit_button("ログイン")
             if submitted:
@@ -239,13 +242,13 @@ else:
                     st.session_state.name = user['name']
                     st.rerun()
                 else:
-                    st.error("ユーザーネームまたはパスワードが間違っています。")
+                    st.error("メールアドレスまたはパスワードが間違っています。")
 
     with register_tab:
-        st.info('【ご注意】\n\n- **お名前:** ログイン後に表示される名前です。\n- **ユーザーネーム:** ログインIDとして使います。\n- **パスワード:** 6文字以上で設定してください。')
+        st.info('【ご注意】\n\n- **お名前:** ログイン後に表示される名前です。\n- **メールアドレス:** ログインIDとして使います。\n- **パスワード:** 6文字以上で設定してください。')
         with st.form("registration_form", clear_on_submit=True):
             name_reg = st.text_input("お名前")
-            email_reg = st.text_input("ユーザーネーム")
+            email_reg = st.text_input("メールアドレス")
             password_reg = st.text_input("パスワード", type="password")
             password_rep = st.text_input("パスワード（確認用）", type="password")
             reg_submitted = st.form_submit_button("登録する")
@@ -256,7 +259,7 @@ else:
                 elif password_reg != password_rep:
                     st.error("パスワードが一致しません。")
                 elif database.get_user(email_reg):
-                    st.error("このユーザーネームは既に使用されています。")
+                    st.error("このメールアドレスは既に使用されています。")
                 else:
                     hashed_password = bcrypt.hashpw(password_reg.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
                     database.add_user(name_reg, email_reg, hashed_password)
