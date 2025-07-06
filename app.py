@@ -9,7 +9,6 @@ import bcrypt
 from streamlit_webrtc import webrtc_streamer, WebRtcMode
 import cv2
 from urllib.parse import urlparse, parse_qs
-import time
 import os # osライブラリを追加
 import yaml # yamlライブラリを追加
 from yaml.loader import SafeLoader # SafeLoaderを追加
@@ -19,6 +18,12 @@ database.init_db()
 
 # --- ページタイトルの設定 ---
 st.set_page_config(page_title="安田研究室 消耗品管理システム", layout="wide")
+
+# --- ▼▼▼ 登録成功時のメッセージ表示ロジックを追加 ▼▼▼ ---
+if st.session_state.get("just_registered"):
+    st.toast('ユーザー登録が完了しました！')
+    # メッセージを表示したら、記憶を消す
+    del st.session_state["just_registered"]
 
 
 # --- ▼▼▼ 管理者パスワードを安全に読み込むロジックを追加 ▼▼▼ ---
@@ -118,6 +123,12 @@ if st.session_state["authentication_status"]:
                 img_bytes = buf.getvalue()
                 st.image(img_bytes, caption=f"{product_for_qr} のQRコード", width=200)
                 st.info("この画像を右クリックして保存し、印刷して使用してください。")
+        
+        # ▼▼▼ ここにスプレッドシートへのリンクを復活させました ▼▼▼
+        st.divider()
+        st.subheader('データベース本体')
+        st.link_button("Googleスプレッドシートで在庫を直接編集する", "https://docs.google.com/spreadsheets/d/1kFw-RGElLZOLtMmijTRExBAKcSJ2yiqLR0BuqAF8G1c/edit")
+
 
     else:
         # --- 通常ユーザーのメインページ（在庫利用画面） ---
@@ -232,5 +243,3 @@ else:
                     
                     st.session_state.just_registered = True
                     st.rerun()
-            
-
