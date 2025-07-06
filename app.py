@@ -124,7 +124,6 @@ if st.session_state["authentication_status"]:
         st.sidebar.subheader("管理者用")
         admin_password_input = st.sidebar.text_input("管理者パスワードを入力", type="password", key="admin_pass")
         if st.sidebar.button("認証"):
-            # ▼▼▼ bcryptを使った安全なパスワードチェックに修正 ▼▼▼
             if admin_hashed_password and bcrypt.checkpw(admin_password_input.encode('utf-8'), admin_hashed_password.encode('utf-8')):
                 st.session_state.admin_unlocked = True
                 st.rerun()
@@ -132,37 +131,62 @@ if st.session_state["authentication_status"]:
                 st.sidebar.error("パスワードが違います。")
         
         st.title('安田研究室　消耗品管理システム')
+        
+        # ▼▼▼ ここにカメラ機能と関連ロジックを復活させました ▼▼▼
         st.header('使用登録')
-        # ... (在庫利用画面のコードは変更なし) ...
-        query_params = st.query_params
-        product_code_from_url = query_params.get("product_code")
+        
+        # session_stateに 'scanned_code' がなければ初期化
+        if 'scanned_code' not in st.session_state:
+            st.session_state.scanned_code = None
 
-        if 'processed_code' not in st.session_state:
-            st.session_state.processed_code = None
+        # QRコードリーダーのコールバック関数
+        def qr_code_callback(frame):
+            img = frame.to_ndarray(format="bgr24")
+            qr_detector = cv2.QRCodeDetector()
+            data, bbox, straight_qrcode = qr_detector.detectAndDecode(img)
+            if data:
+                try:
+                    parsed_url = urlparse(data)
+                    query_params = parse_qs(parsed_url.query)
+                    if 'product_code' in query_params:
+                        st.session_state.scanned_code = query_params['product_code'][0]
+                except Exception:
+                    pass
+            return frame
 
-        if product_code_from_url and st.session_state.processed_code == product_code_from_url:
-            st.success("使用記録が正常に処理されました。")
-            st.markdown('[🏠 ホームに戻る](app.py)')
-        elif product_code_from_url:
-            product = database.get_product_by_code(product_code_from_url)
+        # カメラコンポーネントの表示
+        webrtc_streamer(
+            key="qr-scanner",
+            mode=WebRtcMode.SENDONLY,
+            video_frame_callback=qr_code_callback,
+            media_stream_constraints={"video": {"facingMode": "environment"}, "audio": False},
+            async_processing=True,
+        )
+
+        st.markdown("---")
+        
+        # スキャンされたコード、またはURLからのコードを取得
+        active_product_code = st.session_state.scanned_code or st.query_params.get("product_code")
+
+        if active_product_code:
+            product = database.get_product_by_code(active_product_code)
             if not product:
-                st.error(f"商品コード '{product_code_from_url}' が見つかりません。")
-                st.markdown('[🏠 ホームに戻る](app.py)')
+                st.error(f"商品コード '{active_product_code}' が見つかりません。")
             else:
                 st.subheader(f"品目名: {product['name']}")
                 st.metric(label="現在の在庫数", value=f"{product['current_stock']} {product['unit']}")
                 if product['current_stock'] > 0:
-                    if st.button(f"「{product['name']}」を1つ使用する", type="primary"):
+                    if st.button(f"「{product['name']}」を1つ使用する", type="primary", use_container_width=True):
                         database.update_stock(product['id'], -1)
                         database.add_stock_history(product['id'], name, '使用', 1)
-                        st.session_state.processed_code = product_code_from_url
+                        st.session_state.scanned_code = None # 処理後にスキャン状態をリセット
+                        st.success(f"「{product['name']}」の使用を記録しました。")
+                        st.balloons()
                         st.rerun()
                 else:
                     st.error(f"「{product['name']}」の在庫がありません。")
-                    st.markdown('[🏠 ホームに戻る](app.py)')
         else:
-            st.info("QRコードを読み取って、商品コードを取得してください。")
-            st.session_state.processed_code = None
+            st.info("上のカメラでQRコードをスキャンしてください。")
 
 
 # --- ログイン前の処理 ---
@@ -206,7 +230,6 @@ else:
                     hashed_password = bcrypt.hashpw(password_reg.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
                     database.add_user(name_reg, email_reg, hashed_password)
                     
-                    # ▼▼▼ ここを修正 ▼▼▼
                     st.toast('ユーザー登録が完了しました！ログイン画面に切り替わります。')
                     time.sleep(2) # 2秒待ってメッセージを見せる
                     st.rerun()
