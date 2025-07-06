@@ -1,66 +1,70 @@
 import gspread
 from google.oauth2.service_account import Credentials
 import streamlit as st
-import pandas as pd
 from datetime import datetime
 import os
 import json
 
 # --- Googleスプレッドシートに接続 ---
 def get_gspread_client():
-    """
-    StreamlitのSecretsまたはローカルのJSONファイルから認証情報を読み込み、
-    gspreadクライアントを返す。
-    """
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive.file"
     ]
-
-    # クラウド環境かどうかを判定
     if "google_creds_json" in st.secrets:
-        # クラウド環境：Secretsから認証情報を読み込む
         creds_json_str = st.secrets["google_creds_json"]
         creds_dict = json.loads(creds_json_str)
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     else:
-        # ローカル環境：JSONファイルから認証情報を読み込む
-        # 【注意】このファイル名は、あなたがダウンロードしたファイル名に合わせてください
-        local_creds_path = "ou-yasudalab-stock-14b75180fae9.json" # あなたの設定
+        local_creds_path = "ou-yasudalab-stock-14b75180fae9.json" # あなたのローカルの認証ファイル名
         if not os.path.exists(local_creds_path):
             st.error(f"ローカルに認証ファイルが見つかりません: {local_creds_path}")
             st.stop()
         creds = Credentials.from_service_account_file(local_creds_path, scopes=scopes)
-    
     client = gspread.authorize(creds)
     return client
 
-# --- 接続とシートの取得 ---
-# ▼▼▼ スプレッドシートのIDを、正しいものに修正しました ▼▼▼
-SPREADSHEET_ID = "1kFw-RGElLZOLtMmijTRExBAKcSJ2yiqLR0BuqAF8G1c" # あなたのスプレッドシートの正しいID
+SPREADSHEET_ID = "1kFw-RGElLZOLtMmijTRExBAKcSJ2yiqLR0BuqAF8G1c" # あなたのスプレッドシートID
 try:
     gspread_client = get_gspread_client()
     spreadsheet = gspread_client.open_by_key(SPREADSHEET_ID)
     products_sheet = spreadsheet.worksheet("products")
     history_sheet = spreadsheet.worksheet("stock_history")
+    users_sheet = spreadsheet.worksheet("users") # ▼▼▼ usersシートを追加 ▼▼▼
 except Exception as e:
     st.error(f"スプレッドシートへの接続に失敗しました: {e}")
     st.stop()
 
+# --- ▼▼▼ ユーザー管理用の新しい関数 ▼▼▼ ---
 
-# --- ▼▼▼ これ以降の関数は変更なし ▼▼▼ ---
+def get_user(email):
+    """emailを元にユーザー情報を取得する"""
+    try:
+        cell = users_sheet.find(email, in_column=2) # emailはB列
+        if cell:
+            headers = users_sheet.row_values(1)
+            user_data = users_sheet.row_values(cell.row)
+            return dict(zip(headers, user_data))
+        return None
+    except gspread.exceptions.CellNotFound:
+        return None
+
+def add_user(name, email, hashed_password):
+    """新しいユーザーをusersシートに追加する"""
+    new_row = [name, email, hashed_password]
+    users_sheet.append_row(new_row, value_input_option='USER_ENTERED')
+
+
+# --- ▼▼▼ これまでの在庫管理用の関数（変更なし） ▼▼▼ ---
 
 def init_db():
-    """この関数はもう不要だが、app.pyからの呼び出しのために残しておく。"""
     pass
 
 def get_all_products():
-    """すべての商品情報を取得します。"""
     records = products_sheet.get_all_records()
     return [row for row in records if row.get('id')]
 
 def get_product_by_code(product_code):
-    """商品コードを使って、商品情報を取得します。"""
     try:
         cell = products_sheet.find(product_code, in_column=2)
         if cell:
@@ -72,7 +76,6 @@ def get_product_by_code(product_code):
         return None
 
 def update_stock(product_id, quantity_change):
-    """在庫数を更新します。"""
     try:
         cell = products_sheet.find(str(product_id), in_column=1)
         if cell:
@@ -85,14 +88,12 @@ def update_stock(product_id, quantity_change):
         pass
 
 def add_stock_history(product_id, user_name, change_type, quantity):
-    """在庫変動の履歴を記録します。"""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     next_row_num = len(history_sheet.get_all_values()) + 1
     new_row = [next_row_num - 1, product_id, user_name, change_type, quantity, timestamp]
     history_sheet.append_row(new_row, value_input_option='USER_ENTERED')
 
 def set_stock_count(product_id, new_quantity):
-    """在庫数を指定された値に直接設定します。"""
     try:
         cell = products_sheet.find(str(product_id), in_column=1)
         if cell:
@@ -102,14 +103,10 @@ def set_stock_count(product_id, new_quantity):
         pass
 
 def get_all_history():
-    """すべての在庫履歴を取得します。"""
     all_history_records = history_sheet.get_all_records()
     all_products_records = get_all_products()
-    
     products_map = {product['id']: product['name'] for product in all_products_records}
-    
     for record in all_history_records:
         record['name'] = products_map.get(record['product_id'], '不明な商品')
-    
     sorted_history = sorted(all_history_records, key=lambda x: x['timestamp'], reverse=True)
     return sorted_history
