@@ -36,11 +36,11 @@ def get_gspread_client():
     return client
 
 # --- 接続とシートの取得 ---
-# ▼▼▼ ここを、あなたのスプレッドシートの「ファイル名」に修正しました ▼▼▼
-SPREADSHEET_NAME = "ouyasudalab-stock.streamlit.app/"
+# ▼▼▼ スプレッドシートを名前ではなく、固有のIDで直接開く方法に変更 ▼▼▼
+SPREADSHEET_ID = "1kFW-RGEILZoltMmjTRExBAKcSJ2yiqLR0buqAF8G1c" # あなたのスプレッドシートのID
 try:
     gspread_client = get_gspread_client()
-    spreadsheet = gspread_client.open(SPREADSHEET_NAME)
+    spreadsheet = gspread_client.open_by_key(SPREADSHEET_ID) # open() から open_by_key() に変更
     products_sheet = spreadsheet.worksheet("products")
     history_sheet = spreadsheet.worksheet("stock_history")
 except Exception as e:
