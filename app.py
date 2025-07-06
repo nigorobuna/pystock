@@ -230,6 +230,7 @@ else:
                     hashed_password = bcrypt.hashpw(password_reg.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
                     database.add_user(name_reg, email_reg, hashed_password)
                     
-                    st.toast('ユーザー登録が完了しました！ログイン画面に切り替わります。')
-                    time.sleep(2) # 2秒待ってメッセージを見せる
+                    st.session_state.just_registered = True
                     st.rerun()
+            
+
