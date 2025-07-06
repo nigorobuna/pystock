@@ -18,18 +18,26 @@ import json # JSONを扱うために追加
 #---データベースの準備---
 database.init_db()
 
-#--- ▼▼▼ ユーザー認証の設定を、ライブラリの作法に合わせて修正 ▼▼▼ ---
+#--- ▼▼▼ ユーザー認証の設定を、平坦なSecretsから再構築する方法に変更 ▼▼▼ ---
 # Streamlit Cloudのサーバーに特有のパスが存在するかで環境を判定
 if os.path.exists('/mount/src/pystock'):
-    # クラウド環境：Secretsから設定を読み込む
-    # usernamesはJSON文字列として読み込まれるため、辞書に変換する
-    usernames_dict = json.loads(st.secrets["credentials"]["usernames"])
-    
-    config = {
-        'credentials': {'usernames': usernames_dict}, # 変換した辞書をセット
-        'cookie': st.secrets['cookie'],
-        'admin_password': st.secrets.get('admin_password')
-    }
+    # クラウド環境：Secretsから平坦なキーで設定を読み込む
+    try:
+        usernames_dict = json.loads(st.secrets["credentials_usernames_json"])
+        
+        # Python側で、ライブラリが期待するconfig辞書の形を再構築する
+        config = {
+            'credentials': {'usernames': usernames_dict},
+            'cookie': {
+                'name': st.secrets['cookie_name'],
+                'key': st.secrets['cookie_key'],
+                'expiry_days': st.secrets['cookie_expiry_days']
+            },
+            'admin_password': st.secrets.get('admin_password')
+        }
+    except Exception as e:
+        st.error(f"Secretsの読み込み中にエラーが発生しました: {e}")
+        st.stop() # エラーがあれば、ここでアプリの実行を停止
 else:
     # ローカル環境：config.yamlファイルから読み込む
     with open('config.yaml', 'r', encoding='utf-8') as file:
