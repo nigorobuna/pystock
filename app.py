@@ -36,13 +36,8 @@ if "credentials_usernames_json" in st.secrets:
             'admin_password': st.secrets.get('admin_password')
         }
     except Exception as e:
-        # ▼▼▼ デバッグ用の詳細なエラー表示をコメントアウト ▼▼▼
-        # st.error(f"Secretsの読み込み中にエラーが発生しました: {e}")
-        # st.stop() # エラーがあれば、ここでアプリの実行を停止
-        
-        # ▼▼▼ 代わりに、ユーザー向けの一般的なエラーメッセージを表示 ▼▼▼
-        st.error("アプリケーションの設定読み込み中にエラーが発生しました。管理者に連絡してください。")
-        st.stop()
+        st.error(f"Secretsの読み込み中にエラーが発生しました: {e}")
+        st.stop() # エラーがあれば、ここでアプリの実行を停止
 else:
     # ローカル環境：config.yamlファイルから読み込む
     with open('config.yaml', 'r', encoding='utf-8') as file:
@@ -97,7 +92,10 @@ if st.session_state.get("authentication_status"):
         st.subheader('現在の在庫一覧')
         if all_products_list:
             df_products = pd.DataFrame(all_products_list)
-            df_products.columns = ['id', 'product_code', 'name', 'current_stock', 'unit']
+            # ▼▼▼ 'created_at' を追加して、列の数を6つに合わせる ▼▼▼
+            df_products.columns = ['id', 'product_code', 'name', 'unit', 'current_stock', 'created_at']
+            
+            # 表示したい列だけを抜き出す
             df_display = df_products[['product_code', 'name', 'current_stock', 'unit']]
             df_display.columns = ['商品コード', '品目名', '現在庫数', '単位']
             st.dataframe(df_display, use_container_width=True)
@@ -115,7 +113,7 @@ if st.session_state.get("authentication_status"):
         
         st.subheader('QRコード生成')
         if all_products_list:
-            base_url = st.text_input("アプリのベースURLを入力", "https://your-app-name.streamlit.app", help="デプロイ後に発行される、このアプリのURLを入力してください。")
+            base_url = st.text_input("アプリのベースURLを入力", "https://ouyasudalab-stock.streamlit.app", help="デプロイ後に発行される、このアプリのURLを入力してください。")
             product_for_qr = st.selectbox(label="QRコードを生成する備品を選択", options=[f"{p['name']} ({p['product_code']})" for p in all_products_list], index=None, placeholder="備品を選択してください...")
             if product_for_qr:
                 selected_code = product_for_qr.split('(')[-1].replace(')', '')
