@@ -19,8 +19,8 @@ import json # JSONを扱うために追加
 database.init_db()
 
 #--- ▼▼▼ ユーザー認証の設定を、平坦なSecretsから再構築する方法に変更 ▼▼▼ ---
-# Streamlit Cloudのサーバーに特有のパスが存在するかで環境を判定
-if os.path.exists('/mount/src/pystock'):
+# StreamlitのSecretsに、クラウド環境用のキーが存在するかで判定
+if "credentials_usernames_json" in st.secrets:
     # クラウド環境：Secretsから平坦なキーで設定を読み込む
     try:
         usernames_dict = json.loads(st.secrets["credentials_usernames_json"])
@@ -31,7 +31,7 @@ if os.path.exists('/mount/src/pystock'):
             'cookie': {
                 'name': st.secrets['cookie_name'],
                 'key': st.secrets['cookie_key'],
-                'expiry_days': st.secrets['cookie_expiry_days']
+                'expiry_days': int(st.secrets['cookie_expiry_days']) # 文字列から整数に変換
             },
             'admin_password': st.secrets.get('admin_password')
         }
