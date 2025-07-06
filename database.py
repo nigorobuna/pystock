@@ -4,6 +4,7 @@ import streamlit as st
 from datetime import datetime
 import os
 import json
+import pytz
 
 # --- Googleスプレッドシートに接続 ---
 def get_gspread_client():
@@ -89,7 +90,8 @@ def update_stock(product_id, quantity_change):
         pass
 
 def add_stock_history(product_id, user_name, change_type, quantity):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    jst = pytz.timezone('Asia/Tokyo')
+    timestamp = datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S")
     next_row_num = len(history_sheet.get_all_values()) + 1
     new_row = [next_row_num - 1, product_id, user_name, change_type, quantity, timestamp]
     history_sheet.append_row(new_row, value_input_option='USER_ENTERED')

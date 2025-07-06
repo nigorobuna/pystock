@@ -7,3 +7,4 @@ opencv-python
 gspread
 google-auth-oauthlib
 PyYAML
+pytz
