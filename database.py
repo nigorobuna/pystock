@@ -12,7 +12,6 @@ def get_gspread_client():
     StreamlitのSecretsまたはローカルのJSONファイルから認証情報を読み込み、
     gspreadクライアントを返す。
     """
-    # ▼▼▼ プログラムがGoogleに「何を使いたいか」を伝えるためのリスト ▼▼▼
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive.file"
@@ -23,23 +22,21 @@ def get_gspread_client():
         # クラウド環境：Secretsから認証情報を読み込む
         creds_json_str = st.secrets["google_creds_json"]
         creds_dict = json.loads(creds_json_str)
-        # ▼▼▼ ここに scopes を追加 ▼▼▼
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     else:
         # ローカル環境：JSONファイルから認証情報を読み込む
         # 【注意】このファイル名は、あなたがダウンロードしたファイル名に合わせてください
-        local_creds_path = "ou-yasudalab-stock-14b75180fae9.json" # 例
+        local_creds_path = "ou-yasudalab-stock-14b75180fae9.json" # あなたの設定
         if not os.path.exists(local_creds_path):
             st.error(f"ローカルに認証ファイルが見つかりません: {local_creds_path}")
             st.stop()
-        # ▼▼▼ ここにも scopes を追加 ▼▼▼
         creds = Credentials.from_service_account_file(local_creds_path, scopes=scopes)
     
     client = gspread.authorize(creds)
     return client
 
 # --- 接続とシートの取得 ---
-# 【注意】スプレッドシートの名前を、あなたが作成したものに合わせてください
+# ▼▼▼ ここを、あなたのスプレッドシートの「ファイル名」に修正しました ▼▼▼
 SPREADSHEET_NAME = "ouyasudalab-stock.streamlit.app/"
 try:
     gspread_client = get_gspread_client()
@@ -51,7 +48,7 @@ except Exception as e:
     st.stop()
 
 
-# --- ▼▼▼ これまでの関数は変更なし ▼▼▼ ---
+# --- ▼▼▼ これ以降の関数は変更なし ▼▼▼ ---
 
 def init_db():
     """この関数はもう不要だが、app.pyからの呼び出しのために残しておく。"""
