@@ -1,0 +1,7 @@
+streamlit
+pandas
+streamlit-authenticator
+bcrypt
+qrcode[pil]
+streamlit-webrtc
+opencv-python
