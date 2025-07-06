@@ -1,146 +1,114 @@
-import sqlite3
-DATABASE_NAME = 'pos_system.db'
+import gspread
+from google.oauth2.service_account import Credentials
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+import os
+import json
+
+# --- Googleスプレッドシートに接続 ---
+def get_gspread_client():
+    """
+    StreamlitのSecretsまたはローカルのJSONファイルから認証情報を読み込み、
+    gspreadクライアントを返す。
+    """
+    # クラウド環境かどうかを判定
+    if "google_creds_json" in st.secrets:
+        # クラウド環境：Secretsから認証情報を読み込む
+        creds_json_str = st.secrets["google_creds_json"]
+        creds_dict = json.loads(creds_json_str)
+        creds = Credentials.from_service_account_info(creds_dict)
+    else:
+        # ローカル環境：JSONファイルから認証情報を読み込む
+        # 【注意】このファイル名は、あなたがダウンロードしたファイル名に合わせてください
+        local_creds_path = "ou-yasudalab-stock-14b75180fae9.json"
+        if not os.path.exists(local_creds_path):
+            st.error(f"ローカルに認証ファイルが見つかりません: {local_creds_path}")
+            st.stop()
+        creds = Credentials.from_service_account_file(local_creds_path, scopes=["https://www.googleapis.com/auth/spreadsheets"])
+    
+    client = gspread.authorize(creds)
+    return client
+
+# --- 接続とシートの取得 ---
+# 【注意】スプレッドシートの名前を、あなたが作成したものに合わせてください
+SPREADSHEET_NAME = "簡易POSシステムDB"
+try:
+    gspread_client = get_gspread_client()
+    spreadsheet = gspread_client.open(SPREADSHEET_NAME)
+    products_sheet = spreadsheet.worksheet("products")
+    history_sheet = spreadsheet.worksheet("stock_history")
+except Exception as e:
+    st.error(f"スプレッドシートへの接続に失敗しました: {e}")
+    st.stop()
+
+
+# --- ▼▼▼ これまでの関数を、Googleスプレッドシートを操作するように書き換える ▼▼▼ ---
 
 def init_db():
-    """
-    データベースを初期化し、必要なテーブルを作成
-    すでに存在する場合は何もしない
-    """
-    #データベースファイルに接続
-    conn = sqlite3.connect(DATABASE_NAME)
-    
-    #データベースを操作するためのカーソル(メッセンジャー)を用意する
-    #cursorはSQL文を実行するためのオブジェクト
-    #カーソルを使ってSQL文(設計図)を実行する
-    #conn.cursor()は、データベースに対してSQL文を実行するためのカーソルを作成するメソッド
-    
-    cursor = conn.cursor()
-    
-    #命令: 「products」という名前のテーブルを新規作成
-    # テーブルが存在しない場合のみ作成
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS products (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        product_code TEXT UNIQUE NOT NULL,
-        name TEXT NOT NULL,
-        unit TEXT, -- 単位 (例: 箱, 個, 本)
-        current_stock INTEGER NOT NULL DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    #命令: 「stock_history」という名前のテーブルを新規作成
-    # 在庫の出入りを記録。
-    # テーブルが存在しない場合のみ作成
-    
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS stock_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        product_id INTEGER,
-        user_name TEXT, -- 使用者名
-        change_type TEXT NOT NULL,
-        quantity INTEGER NOT NULL,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (product_id) REFERENCES products (id)
-    )
-    ''')
-    
-    #変更を保存して、接続を閉じる
-    conn.commit()
-    conn.close()
-    
-def add_product(product_code, name, unit):
-    """消耗品を新たにデータベースに追加する関数"""
-    conn = sqlite3.connect(DATABASE_NAME)
-    cursor = conn.cursor()
-    try:
-        cursor.execute("INSERT INTO products (product_code, name, unit) VALUES (?, ?, ?)", (product_code, name, unit))
-        conn.commit()
-        return True
-    except sqlite3.IntegrityError:
-    #商品コードが重複している場合はエラーを返す
-        return False
-    finally:
-        conn.close()
-    
-
-if __name__ == '__main__':
-    #このファイルを直接実行したときはデータベースを初期化するコード(init_db)を実行
-    init_db()
-    print(f"データベース '{DATABASE_NAME}' の準備ができました")
-
-#消耗品情報の取得
-def get_product_by_code(product_code):
-    """商品コードから消耗品情報を取得する関数"""
-    conn = sqlite3.connect(DATABASE_NAME)
-    #辞書形式で結果　を取得するためにrow_factoryを設定
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM products WHERE product_code = ?", (product_code,))
-    product = cursor.fetchone()
-    conn.close()
-    return product
-
-#在庫数の更新
-def update_stock(product_id, quantity_change):
-    """在庫数を更新する関数。quantity_changeは正の値で追加、負の値で減少"""
-    conn = sqlite3.connect(DATABASE_NAME)
-    cursor = conn.cursor()
-    cursor.execute("UPDATE products SET current_stock = current_stock + ? WHERE id = ?",(quantity_change, product_id))
-    conn.commit()
-    conn.close()
-    
-
-#在庫履歴の記録
-def add_stock_history(product_id, user_name, change_type, quantity):
-    """在庫の出入りを記録する関数"""
-    conn = sqlite3.connect(DATABASE_NAME)
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO stock_history (product_id, user_name, change_type, quantity) VALUES (?, ?, ?, ?)", 
-                   (product_id, user_name, change_type, quantity))
-    conn.commit()
-    conn.close()
-
+    """この関数はもう不要だが、app.pyからの呼び出しのために残しておく。"""
+    pass
 
 def get_all_products():
-    """全ての消耗品情報を取得する関数"""
-    conn = sqlite3.connect(DATABASE_NAME)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    #商品名で並び変える
-    cursor.execute("SELECT id, product_code, name,current_stock, unit FROM products ORDER BY name ASC")
-    products = cursor.fetchall()
-    conn.close()
-    return products
+    """すべての商品情報を取得します。"""
+    records = products_sheet.get_all_records()
+    # gspreadは空の行も読むことがあるので、idがある行だけをフィルタリング
+    return [row for row in records if row.get('id')]
+
+def get_product_by_code(product_code):
+    """商品コードを使って、商品情報を取得します。"""
+    try:
+        cell = products_sheet.find(product_code, in_column=2) # product_codeはB列(2列目)
+        if cell:
+            row_values = products_sheet.row_values(cell.row)
+            headers = products_sheet.row_values(1)
+            return dict(zip(headers, row_values))
+        return None
+    except gspread.exceptions.CellNotFound:
+        return None
+
+def update_stock(product_id, quantity_change):
+    """在庫数を更新します。"""
+    try:
+        cell = products_sheet.find(str(product_id), in_column=1) # idはA列(1列目)
+        if cell:
+            current_stock_col = 5 # current_stockはE列(5列目)
+            current_stock = int(products_sheet.cell(cell.row, current_stock_col).value)
+            new_stock = current_stock + quantity_change
+            products_sheet.update_cell(cell.row, current_stock_col, new_stock)
+    except gspread.exceptions.CellNotFound:
+        pass # 商品が見つからない場合は何もしない
+
+def add_stock_history(product_id, user_name, change_type, quantity):
+    """在庫変動の履歴を記録します。"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # 次の空の行を探して追記
+    next_row_num = len(history_sheet.get_all_values()) + 1
+    new_row = [next_row_num - 1, product_id, user_name, change_type, quantity, timestamp]
+    history_sheet.append_row(new_row, value_input_option='USER_ENTERED')
+
+def set_stock_count(product_id, new_quantity):
+    """在庫数を指定された値に直接設定します。"""
+    try:
+        cell = products_sheet.find(str(product_id), in_column=1) # idはA列(1列目)
+        if cell:
+            current_stock_col = 5 # current_stockはE列(5列目)
+            products_sheet.update_cell(cell.row, current_stock_col, new_quantity)
+    except gspread.exceptions.CellNotFound:
+        pass
 
 def get_all_history():
-    """全ての在庫履歴を取得する関数"""
-    conn = sqlite3.connect(DATABASE_NAME)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    #履歴テーブル、商品テーブルを結合し、新しい順に並び替える
-    cursor.execute('''
-        SELECT
-            h.timestamp,
-            h.user_name,
-            p.name,
-            h.change_type,
-            h.quantity
-        FROM
-            stock_history AS h
-        JOIN
-            products AS p ON h.product_id = p.id
-        ORDER BY
-            h.timestamp DESC
-    ''')
-    history = cursor.fetchall()
-    conn.close()
-    return history
-
-def set_stock_count(product_id_, new_quantity):
-    """在庫数を直接設定する関数"""
-    conn = sqlite3.connect(DATABASE_NAME)
-    cursor = conn.cursor()
-    cursor.execute("UPDATE products SET current_stock = ? WHERE id = ?", (new_quantity, product_id_))
-    conn.commit()
-    conn.close()
+    """すべての在庫履歴を取得します。"""
+    all_history_records = history_sheet.get_all_records()
+    all_products_records = get_all_products()
+    
+    # 商品IDと商品名を紐付ける辞書を作成
+    products_map = {product['id']: product['name'] for product in all_products_records}
+    
+    # 履歴に商品名を追加
+    for record in all_history_records:
+        record['name'] = products_map.get(record['product_id'], '不明な商品')
+    
+    # 新しい順に並び替え
+    sorted_history = sorted(all_history_records, key=lambda x: x['timestamp'], reverse=True)
+    return sorted_history
