@@ -245,7 +245,7 @@ else:
                     st.error("ユーザーネームまたはパスワードが間違っています。")
 
     with register_tab:
-        st.info('【ご注意】\n\n- **お名前:** ログイン後に表示される名前です。\n- **ユーザーネーム:** ログインIDとして使います。\n- **パスワード:** 6文字以上で設定してください。')
+        st.info('【ご注意】\n\n- **お名前:** ログイン後に表示される名前です。\n- **ユーザーネーム:** ログインIDとして使います。半角英数字で登録してください。\n- **パスワード:** 6文字以上で設定してください。')
         with st.form("registration_form", clear_on_submit=True):
             name_reg = st.text_input("お名前")
             email_reg = st.text_input("ユーザーネーム")
