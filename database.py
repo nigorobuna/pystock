@@ -32,7 +32,7 @@ def get_gspread_client():
 
 # --- 接続とシートの取得 ---
 # 【注意】スプレッドシートの名前を、あなたが作成したものに合わせてください
-SPREADSHEET_NAME = "簡易POSシステムDB"
+SPREADSHEET_NAME = "ouyasudalab-stock.streamlit.app/"
 try:
     gspread_client = get_gspread_client()
     spreadsheet = gspread_client.open(SPREADSHEET_NAME)
