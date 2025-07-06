@@ -17,10 +17,9 @@ import os # osライブラリをインポート
 #---データベースの準備---
 database.init_db()
 
-#--- ▼▼▼ ユーザー認証の設定を、os環境変数で判定する、より確実な方法に変更 ▼▼▼ ---
-# Streamlit Cloud上では、特定の環境変数が設定されることを利用する
-# os.environ.get('STREAMLIT_SERVER_PORT') は、ローカルではNone、クラウドではポート番号を返す
-if os.environ.get('STREAMLIT_SERVER_PORT'):
+#--- ▼▼▼ ユーザー認証の設定を、ファイルパスで判定する、最も確実な方法に変更 ▼▼▼ ---
+# Streamlit Cloudのサーバーに特有のパスが存在するかで環境を判定
+if os.path.exists('/mount/src/pystock'):
     # クラウド環境：Secretsから設定を読み込む
     config = {
         'credentials': st.secrets['credentials'],
