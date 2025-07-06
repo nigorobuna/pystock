@@ -82,3 +82,6 @@ pos_system.db
 
 # パスワード生成用スクリプト（共有不要）
 generate_keys.py
+
+#streamlitのseacretsファイル
+toml.txt
