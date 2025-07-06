@@ -222,7 +222,7 @@ if st.session_state["authentication_status"]:
                 else:
                     st.error(f"「{product['name']}」の在庫がありません。")
         else:
-            st.info("上のカメラでQRコードをスキャンしてください。")
+            st.info("内部からの登録機能は現在調整中です。ボタンを押しても読み込めません。")
 
 
 # --- ログイン前の処理 ---
