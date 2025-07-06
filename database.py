@@ -35,41 +35,16 @@ def get_gspread_client():
     client = gspread.authorize(creds)
     return client
 
-# --- ▼▼▼ 接続とシートの取得部分を、詳細な診断モードに変更 ▼▼▼ ---
-SPREADSHEET_ID = "1kFW-RGEILZoltMmjTRExBAKcSJ2yiqLR0buqAF8G1c" # あなたのスプレッドシートのID
-
+# --- 接続とシートの取得 ---
+# ▼▼▼ スプレッドシートのIDを、正しいものに修正しました ▼▼▼
+SPREADSHEET_ID = "1kFw-RGElLZOLtMmijTRExBAKcSJ2yiqLR0BuqAF8G1c" # あなたのスプレッドシートの正しいID
 try:
     gspread_client = get_gspread_client()
-    st.success("✅ ステップ1/4: Googleクライアントの取得に成功しました。")
-except Exception as e:
-    st.error(f"❌ ステップ1/4: Googleクライアントの取得で失敗しました: {e}")
-    st.stop()
-
-try:
     spreadsheet = gspread_client.open_by_key(SPREADSHEET_ID)
-    st.success("✅ ステップ2/4: スプレッドシートのオープンに成功しました。")
-except Exception as e:
-    st.error(f"❌ ステップ2/4: スプレッドシートのオープンで失敗しました: {e}")
-    st.warning("【確認してください】")
-    st.info("1. Google Cloudで「Google Drive API」と「Google Sheets API」の両方が有効になっていますか？")
-    st.info("2. スプレッドシートの「共有」設定で、サービスアカウントのメールアドレスが「編集者」として追加されていますか？")
-    st.stop()
-
-try:
     products_sheet = spreadsheet.worksheet("products")
-    st.success("✅ ステップ3/4: 'products'シートの取得に成功しました。")
-except Exception as e:
-    st.error(f"❌ ステップ3/4: 'products'シートの取得で失敗しました: {e}")
-    st.warning("【確認してください】スプレッドシートに 'products' という名前のタブ（シート）が存在しますか？（小文字です）")
-    st.stop()
-
-try:
     history_sheet = spreadsheet.worksheet("stock_history")
-    st.success("✅ ステップ4/4: 'stock_history'シートの取得に成功しました。")
-    st.success("🎉 すべての接続テストに成功しました！")
 except Exception as e:
-    st.error(f"❌ ステップ4/4: 'stock_history'シートの取得で失敗しました: {e}")
-    st.warning("【確認してください】スプレッドシートに 'stock_history' という名前のタブ（シート）が存在しますか？（小文字です）")
+    st.error(f"スプレッドシートへの接続に失敗しました: {e}")
     st.stop()
 
 
