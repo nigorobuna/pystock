@@ -232,7 +232,7 @@ else:
 
     with login_tab:
         with st.form("login_form"):
-            email = st.text_input("メールアドレス")
+            email = st.text_input("ユーザーネーム")
             password = st.text_input("パスワード", type="password")
             submitted = st.form_submit_button("ログイン")
             if submitted:
@@ -242,13 +242,13 @@ else:
                     st.session_state.name = user['name']
                     st.rerun()
                 else:
-                    st.error("メールアドレスまたはパスワードが間違っています。")
+                    st.error("ユーザーネームまたはパスワードが間違っています。")
 
     with register_tab:
-        st.info('【ご注意】\n\n- **お名前:** ログイン後に表示される名前です。\n- **メールアドレス:** ログインIDとして使います。\n- **パスワード:** 6文字以上で設定してください。')
+        st.info('【ご注意】\n\n- **お名前:** ログイン後に表示される名前です。\n- **ユーザーネーム:** ログインIDとして使います。\n- **パスワード:** 6文字以上で設定してください。')
         with st.form("registration_form", clear_on_submit=True):
             name_reg = st.text_input("お名前")
-            email_reg = st.text_input("メールアドレス")
+            email_reg = st.text_input("ユーザーネーム")
             password_reg = st.text_input("パスワード", type="password")
             password_rep = st.text_input("パスワード（確認用）", type="password")
             reg_submitted = st.form_submit_button("登録する")
@@ -259,7 +259,7 @@ else:
                 elif password_reg != password_rep:
                     st.error("パスワードが一致しません。")
                 elif database.get_user(email_reg):
-                    st.error("このメールアドレスは既に使用されています。")
+                    st.error("このユーザーネームは既に使用されています。")
                 else:
                     hashed_password = bcrypt.hashpw(password_reg.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
                     database.add_user(name_reg, email_reg, hashed_password)
