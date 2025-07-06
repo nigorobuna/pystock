@@ -18,16 +18,9 @@ import json # JSONを扱うために追加
 #---データベースの準備---
 database.init_db()
 
-#--- ▼▼▼ ユーザー認証の設定を、デバッグ機能付きで判定 ▼▼▼ ---
+#--- ▼▼▼ ユーザー認証の設定を、平坦なSecretsから再構築する方法に変更 ▼▼▼ ---
 # Streamlit Cloudのサーバーに特有のパスが存在するかで環境を判定
 if os.path.exists('/mount/src/pystock'):
-    # --- ▼▼▼ デバッグ機能：Secretsの中身を画面に表示 ▼▼▼ ---
-    st.header("デバッグ情報")
-    st.write("現在アプリから見えているSecretsのキー一覧:")
-    st.write(st.secrets.keys())
-    st.write("---")
-    # --- ▲▲▲ デバッグ機能はここまで ▲▲▲ ---
-
     # クラウド環境：Secretsから平坦なキーで設定を読み込む
     try:
         usernames_dict = json.loads(st.secrets["credentials_usernames_json"])
