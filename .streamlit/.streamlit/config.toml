@@ -1,0 +1,20 @@
+# .streamlit/config.toml の記述例
+
+[theme]
+# プライマリカラー（ボタンや主要な要素の色）
+# 例：少し落ち着いた青色
+primaryColor="#1E90FF"
+
+# 背景色
+backgroundColor="#F0F8FF"
+
+# サブ的な背景色（サイドバーなど）
+secondaryBackgroundColor="#E6E6FA"
+
+# 文字色
+textColor="#31333F"
+
+# 使用するフォント
+# "sans serif", "serif", "monospace" から選ぶか、
+# Google Fontsにあるフォント名（例: "Noto Sans JP"）を指定できます
+font="sans serif"
