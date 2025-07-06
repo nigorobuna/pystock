@@ -102,9 +102,13 @@ if st.session_state["authentication_status"]:
         st.subheader('使用履歴')
         all_history = database.get_all_history()
         if all_history:
-            df_history = pd.DataFrame(all_history)
-            df_history.columns = ['日時', '使用者', '品目名', '操作', '数量']
-            st.dataframe(df_history, use_container_width=True)
+            # ▼▼▼ 表示したい列だけを選んでから、名前を付けるように修正 ▼▼▼
+            df_full_history = pd.DataFrame(all_history)
+            # 表示したい列を、正しい順番で指定
+            df_display_history = df_full_history[['timestamp', 'user_name', 'name', 'change_type', 'quantity']]
+            # 表示用のDataFrameの列名を日本語に設定
+            df_display_history.columns = ['日時', '使用者', '品目名', '操作', '数量']
+            st.dataframe(df_display_history, use_container_width=True)
         else:
             st.write('使用履歴がありません。')
         
@@ -124,7 +128,6 @@ if st.session_state["authentication_status"]:
                 st.image(img_bytes, caption=f"{product_for_qr} のQRコード", width=200)
                 st.info("この画像を右クリックして保存し、印刷して使用してください。")
         
-        # ▼▼▼ ここにスプレッドシートへのリンクを復活させました ▼▼▼
         st.divider()
         st.subheader('データベース本体')
         st.link_button("Googleスプレッドシートで在庫を直接編集する", "https://docs.google.com/spreadsheets/d/1kFw-RGElLZOLtMmijTRExBAKcSJ2yiqLR0BuqAF8G1c/edit")
@@ -143,14 +146,11 @@ if st.session_state["authentication_status"]:
         
         st.title('安田研究室　消耗品管理システム')
         
-        # ▼▼▼ ここにカメラ機能と関連ロジックを復活させました ▼▼▼
         st.header('使用登録')
         
-        # session_stateに 'scanned_code' がなければ初期化
         if 'scanned_code' not in st.session_state:
             st.session_state.scanned_code = None
 
-        # QRコードリーダーのコールバック関数
         def qr_code_callback(frame):
             img = frame.to_ndarray(format="bgr24")
             qr_detector = cv2.QRCodeDetector()
@@ -165,7 +165,6 @@ if st.session_state["authentication_status"]:
                     pass
             return frame
 
-        # カメラコンポーネントの表示
         webrtc_streamer(
             key="qr-scanner",
             mode=WebRtcMode.SENDONLY,
@@ -176,7 +175,6 @@ if st.session_state["authentication_status"]:
 
         st.markdown("---")
         
-        # スキャンされたコード、またはURLからのコードを取得
         active_product_code = st.session_state.scanned_code or st.query_params.get("product_code")
 
         if active_product_code:
@@ -190,7 +188,7 @@ if st.session_state["authentication_status"]:
                     if st.button(f"「{product['name']}」を1つ使用する", type="primary", use_container_width=True):
                         database.update_stock(product['id'], -1)
                         database.add_stock_history(product['id'], name, '使用', 1)
-                        st.session_state.scanned_code = None # 処理後にスキャン状態をリセット
+                        st.session_state.scanned_code = None
                         st.success(f"「{product['name']}」の使用を記録しました。")
                         st.balloons()
                         st.rerun()
@@ -205,7 +203,6 @@ else:
     st.title('安田研究室　消耗品管理システム')
     login_tab, register_tab = st.tabs(["ログイン", "新規登録"])
 
-    # --- ログインタブ ---
     with login_tab:
         with st.form("login_form"):
             email = st.text_input("ユーザーネーム")
@@ -220,7 +217,6 @@ else:
                 else:
                     st.error("ユーザーネームまたはパスワードが間違っています。")
 
-    # --- 新規登録タブ ---
     with register_tab:
         st.info('【ご注意】\n\n- **お名前:** ログイン後に表示される名前です。\n- **ユーザーネーム:** ログインIDとして使います。\n- **パスワード:** 6文字以上で設定してください。')
         with st.form("registration_form", clear_on_submit=True):
