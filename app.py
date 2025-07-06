@@ -13,6 +13,7 @@ import os # osライブラリを追加
 import yaml # yamlライブラリを追加
 from yaml.loader import SafeLoader # SafeLoaderを追加
 import av # カメラのフレームを扱うために追加
+import threading # スレッドを扱うために追加
 
 # --- データベースの準備（変更なし） ---
 database.init_db()
@@ -149,44 +150,32 @@ if st.session_state["authentication_status"]:
         
         st.header('使用登録')
         
-        if 'scanned_code' not in st.session_state:
-            st.session_state.scanned_code = None
+        # ▼▼▼ QRコードリーダーのロジックを、より安全な形に修正 ▼▼▼
+        lock = threading.Lock()
+        qr_code_data = None
 
-        # ▼▼▼ QRコードリーダーのコールバック関数を修正 ▼▼▼
-        def qr_code_callback(frame: av.VideoFrame) -> av.VideoFrame:
+        def qr_code_callback(frame: av.VideoFrame):
+            nonlocal qr_code_data
             img = frame.to_ndarray(format="bgr24")
 
-            # --- 映像にガイドを描画 ---
+            # ガイドの描画
             height, width, _ = img.shape
-            box_size = 250 # ガイドの四角のサイズ
+            box_size = min(width, height) * 2 // 3
             x_start = (width - box_size) // 2
             y_start = (height - box_size) // 2
-            x_end = x_start + box_size
-            y_end = y_start + box_size
+            cv2.rectangle(img, (x_start, y_start), (x_start + box_size, y_start + box_size), (0, 255, 0), 2)
             
-            # 四角い枠を描画
-            cv2.rectangle(img, (x_start, y_start), (x_end, y_end), (0, 255, 0), 2)
-            # テキストを描画
-            cv2.putText(img, "QR code wo wakunai ni awasete kudasai", (x_start, y_start - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-            
-            # --- QRコードの検出とデコード ---
+            # QRコードの検出
             qr_detector = cv2.QRCodeDetector()
-            data, bbox, straight_qrcode = qr_detector.detectAndDecode(img)
+            data, _, _ = qr_detector.detectAndDecode(img)
             
             if data:
-                try:
-                    parsed_url = urlparse(data)
-                    query_params = parse_qs(parsed_url.query)
-                    if 'product_code' in query_params:
-                        st.session_state.scanned_code = query_params['product_code'][0]
-                except Exception:
-                    pass
+                with lock:
+                    qr_code_data = data
             
-            # 変更した画像を返す
             return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-        # カメラコンポーネントの表示
-        webrtc_streamer(
+        webrtc_ctx = webrtc_streamer(
             key="qr-scanner",
             mode=WebRtcMode.SENDONLY,
             video_frame_callback=qr_code_callback,
@@ -195,8 +184,19 @@ if st.session_state["authentication_status"]:
         )
 
         st.markdown("---")
-        
-        active_product_code = st.session_state.scanned_code or st.query_params.get("product_code")
+
+        if webrtc_ctx.state.playing and qr_code_data:
+            try:
+                parsed_url = urlparse(qr_code_data)
+                query_params = parse_qs(parsed_url.query)
+                if 'product_code' in query_params:
+                    st.session_state.scanned_code = query_params['product_code'][0]
+                    # 読み取り成功後、即座にリロードして表示を確定させる
+                    st.rerun()
+            except Exception:
+                st.error("不正なQRコードです。")
+
+        active_product_code = st.session_state.get("scanned_code")
 
         if active_product_code:
             product = database.get_product_by_code(active_product_code)
