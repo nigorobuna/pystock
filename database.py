@@ -1,3 +1,6 @@
+# ==============================================================================
+# database.py
+# ==============================================================================
 import gspread
 from google.oauth2.service_account import Credentials
 import streamlit as st
@@ -22,6 +25,7 @@ def get_gspread_client():
             st.error(f"ローカルに認証ファイルが見つかりません: {local_creds_path}")
             st.stop()
         creds = Credentials.from_service_account_file(local_creds_path, scopes=scopes)
+    
     client = gspread.authorize(creds)
     return client
 
@@ -37,9 +41,7 @@ except Exception as e:
     st.stop()
 
 # --- ユーザー管理用の関数 ---
-
 def get_user(email):
-    """emailを元にユーザー情報を取得する"""
     try:
         cell = users_sheet.find(email, in_column=2)
         if cell:
@@ -51,14 +53,10 @@ def get_user(email):
         return None
 
 def add_user(name, email, hashed_password):
-    """新しいユーザーをusersシートに追加する"""
-    # ▼▼▼ 念のため、すべての値を文字列に変換する処理を追加 ▼▼▼
     new_row = [str(name), str(email), str(hashed_password)]
     users_sheet.append_row(new_row, value_input_option='USER_ENTERED')
 
-
-# --- 在庫管理用の関数（変更なし） ---
-
+# --- 在庫管理用の関数 ---
 def init_db():
     pass
 
@@ -93,8 +91,19 @@ def add_stock_history(product_id, user_name, change_type, quantity):
     jst = pytz.timezone('Asia/Tokyo')
     timestamp = datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S")
     next_row_num = len(history_sheet.get_all_values()) + 1
-    new_row = [next_row_num - 1, product_id, user_name, change_type, quantity, timestamp]
+    new_row = [next_row_num - 1, product_id, user_name, change_type, quantity, timestamp, ''] # misc_item_nameは空
     history_sheet.append_row(new_row, value_input_option='USER_ENTERED')
+
+# ▼▼▼ 新しい関数を追加 ▼▼▼
+def add_misc_stock_history(user_name, item_name, quantity):
+    """その他備品の使用履歴を記録します。"""
+    jst = pytz.timezone('Asia/Tokyo')
+    timestamp = datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S")
+    next_row_num = len(history_sheet.get_all_values()) + 1
+    # product_idは空欄にし、misc_item_nameに手入力した品目名を入れる
+    new_row = [next_row_num - 1, '', user_name, 'その他使用', quantity, timestamp, item_name]
+    history_sheet.append_row(new_row, value_input_option='USER_ENTERED')
+
 
 def set_stock_count(product_id, new_quantity):
     try:
@@ -106,10 +115,20 @@ def set_stock_count(product_id, new_quantity):
         pass
 
 def get_all_history():
+    """すべての在庫履歴を取得します。"""
     all_history_records = history_sheet.get_all_records()
     all_products_records = get_all_products()
+    
     products_map = {product['id']: product['name'] for product in all_products_records}
+    
+    # ▼▼▼ 履歴表示ロジックを修正 ▼▼▼
     for record in all_history_records:
-        record['name'] = products_map.get(record['product_id'], '不明な商品')
+        # product_idがあれば、それを元に品目名を取得
+        if record.get('product_id') and record['product_id'] in products_map:
+            record['name'] = products_map[record['product_id']]
+        # なければ、手入力された品目名を使う
+        else:
+            record['name'] = record.get('misc_item_name', '不明な手動入力品')
+    
     sorted_history = sorted(all_history_records, key=lambda x: x['timestamp'], reverse=True)
     return sorted_history

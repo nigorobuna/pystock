@@ -1,3 +1,6 @@
+# ==============================================================================
+# app.py
+# ==============================================================================
 # Streamlitアプリケーションのメインファイル
 # -*- coding: utf-8 -*-
 import streamlit as st
@@ -104,6 +107,7 @@ if st.session_state["authentication_status"]:
         all_history = database.get_all_history()
         if all_history:
             df_full_history = pd.DataFrame(all_history)
+            # ▼▼▼ 表示する列を追加 ▼▼▼
             df_display_history = df_full_history[['timestamp', 'user_name', 'name', 'change_type', 'quantity']]
             df_display_history.columns = ['日時', '使用者', '品目名', '操作', '数量']
             st.dataframe(df_display_history, use_container_width=True)
@@ -144,35 +148,48 @@ if st.session_state["authentication_status"]:
         
         st.title('安田研究室　消耗品管理システム')
         
-        st.header('使用登録')
+        # ▼▼▼ ここからメイン画面のレイアウトを変更 ▼▼▼
+        
+        # --- QRのない備品を使用するフォーム ---
+        with st.expander("QRコードのない備品を使用する"):
+            with st.form("misc_item_form", clear_on_submit=True):
+                misc_item_name = st.text_input("品目名を入力してください")
+                misc_quantity = st.number_input("使用した数量", min_value=1, step=1)
+                misc_submitted = st.form_submit_button("この内容で記録する")
+
+                if misc_submitted:
+                    if misc_item_name and misc_quantity > 0:
+                        database.add_misc_stock_history(name, misc_item_name, misc_quantity)
+                        st.success(f"「{misc_item_name}」の使用を記録しました。")
+                        st.balloons()
+                    else:
+                        st.warning("品目名と数量を入力してください。")
+        
+        st.divider()
+
+        # --- QRコードで登録 ---
+        st.header('QRコードで登録')
         
         if 'scanned_code' not in st.session_state:
             st.session_state.scanned_code = None
 
         def qr_code_callback(frame: av.VideoFrame) -> av.VideoFrame:
             img = frame.to_ndarray(format="bgr24")
-
-            # ガイドの描画
             height, width, _ = img.shape
             box_size = min(width, height) * 2 // 3
             x_start = (width - box_size) // 2
             y_start = (height - box_size) // 2
             cv2.rectangle(img, (x_start, y_start), (x_start + box_size, y_start + box_size), (0, 255, 0), 2)
-            
-            # QRコードの検出
             qr_detector = cv2.QRCodeDetector()
             data, _, _ = qr_detector.detectAndDecode(img)
-            
             if data:
                 try:
                     parsed_url = urlparse(data)
                     query_params = parse_qs(parsed_url.query)
                     if 'product_code' in query_params:
-                        # 読み取ったコードをsession_stateに直接書き込む
                         st.session_state.scanned_code = query_params['product_code'][0]
                 except Exception:
                     pass
-            
             return av.VideoFrame.from_ndarray(img, format="bgr24")
 
         webrtc_streamer(
@@ -188,7 +205,6 @@ if st.session_state["authentication_status"]:
         active_product_code = st.session_state.get("scanned_code") or st.query_params.get("product_code")
 
         if active_product_code:
-            # 読み取りに成功したら、即座にリロードして表示を確定させる
             if st.session_state.get('last_scanned_code') != active_product_code:
                 st.session_state.last_scanned_code = active_product_code
                 st.rerun()
@@ -209,20 +225,17 @@ if st.session_state["authentication_status"]:
                     if st.button(f"「{product['name']}」を1つ使用する", type="primary", use_container_width=True):
                         database.update_stock(product['id'], -1)
                         database.add_stock_history(product['id'], name, '使用', 1)
-                        
-                        # ▼▼▼ 状態を完全にリセットする ▼▼▼
                         st.session_state.scanned_code = None
                         st.session_state.last_scanned_code = None
                         if "product_code" in st.query_params:
-                            st.query_params.clear() # URLのパラメータもクリアする
-                        
+                            st.query_params.clear()
                         st.success(f"「{product['name']}」の使用を記録しました。")
                         st.balloons()
                         st.rerun()
                 else:
                     st.error(f"「{product['name']}」の在庫がありません。")
         else:
-            st.info("内部からの登録機能は現在調整中です。ボタンを押しても読み込めません。")
+            st.info("QRコードをスキャンするか、上のメニューから手動で入力してください。")
 
 
 # --- ログイン前の処理 ---
@@ -245,16 +258,21 @@ else:
                     st.error("ユーザーネームまたはパスワードが間違っています。")
 
     with register_tab:
-        st.info('【ご注意】\n\n- **お名前:** ログイン後に表示される名前です。\n- **ユーザーネーム:** ログインIDとして使います。半角英数字で登録してください。\n- **パスワード:** 6文字以上で設定してください。')
+        st.info('【ご注意】\n\n- **お名前:** ログイン後に表示される名前です。\n- **ユーザーネーム:** ログインIDとして使います。\n- **パスワード:** 6文字以上で設定してください。')
         with st.form("registration_form", clear_on_submit=True):
             name_reg = st.text_input("お名前")
             email_reg = st.text_input("ユーザーネーム")
             password_reg = st.text_input("パスワード", type="password")
             password_rep = st.text_input("パスワード（確認用）", type="password")
+            pin_reg = st.text_input("共通の暗証番号 (4桁)", type="password", max_chars=4)
             reg_submitted = st.form_submit_button("登録する")
             
             if reg_submitted:
-                if not (name_reg and email_reg and password_reg and password_rep):
+                pin_ok = master_pin_hash and bcrypt.checkpw(pin_reg.encode('utf-8'), master_pin_hash.encode('utf-8'))
+
+                if not pin_ok:
+                    st.error("共通の暗証番号が違います。")
+                elif not (name_reg and email_reg and password_reg and password_rep):
                     st.warning("すべての項目を入力してください。")
                 elif password_reg != password_rep:
                     st.error("パスワードが一致しません。")
@@ -263,6 +281,5 @@ else:
                 else:
                     hashed_password = bcrypt.hashpw(password_reg.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
                     database.add_user(name_reg, email_reg, hashed_password)
-                    
                     st.session_state.just_registered = True
                     st.rerun()
