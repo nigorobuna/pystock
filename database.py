@@ -28,7 +28,7 @@ def get_gspread_client():
     else:
         # ローカル環境：JSONファイルから認証情報を読み込む
         # 【注意】このファイル名は、あなたがダウンロードしたファイル名に合わせてください
-        local_creds_path = "ou-yasudalab-stock-xxxxxx-xxxxxxxxxxxx.json" # 例
+        local_creds_path = "ou-yasudalab-stock-14b75180fae9.json" # 例
         if not os.path.exists(local_creds_path):
             st.error(f"ローカルに認証ファイルが見つかりません: {local_creds_path}")
             st.stop()
@@ -40,7 +40,7 @@ def get_gspread_client():
 
 # --- 接続とシートの取得 ---
 # 【注意】スプレッドシートの名前を、あなたが作成したものに合わせてください
-SPREADSHEET_NAME = "簡易POSシステムDB"
+SPREADSHEET_NAME = "ouyasudalab-stock.streamlit.app/"
 try:
     gspread_client = get_gspread_client()
     spreadsheet = gspread_client.open(SPREADSHEET_NAME)
