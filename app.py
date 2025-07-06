@@ -9,16 +9,27 @@ import pandas as pd
 import qrcode
 import io
 import bcrypt
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
+from streamlit_webrtc import webrtc_streamer, WebRtcMode
 import cv2
 from urllib.parse import urlparse, parse_qs
+import os # 環境変数を読み込むために追加
 
 #---データベースの準備---
 database.init_db()
 
-#---ユーザー認証の設定---
-with open('config.yaml', 'r', encoding='utf-8') as file:
-    config = yaml.load(file, Loader=SafeLoader)
+#--- ▼▼▼ ユーザー認証の設定をデプロイ環境に対応させる ▼▼▼ ---
+# Streamlit Community Cloudでデプロイされているかをチェック
+if 'STREAMLIT_SHARING_MODE' in os.environ:
+    # クラウド環境では、StreamlitのSecrets機能から設定を読み込む
+    config = {
+        'credentials': st.secrets['credentials'],
+        'cookie': st.secrets['cookie'],
+        'admin_password': st.secrets.get('admin_password') # admin_passwordは任意なので.get()を使う
+    }
+else:
+    # ローカル環境では、従来通りconfig.yamlファイルから読み込む
+    with open('config.yaml', 'r', encoding='utf-8') as file:
+        config = yaml.load(file, Loader=SafeLoader)
 
 authenticator = stauth.Authenticate(
     config['credentials'],
@@ -40,7 +51,6 @@ if st.session_state.get("authentication_status"):
 
     if st.session_state.admin_unlocked:
         # --- 管理者ページ ---
-        # (管理者ページのコードは変更なし)
         st.sidebar.success("管理者メニュー (ロック解除済み)")
         st.title('管理者メニュー')
         if st.button('メイン画面に戻る'):
@@ -88,7 +98,7 @@ if st.session_state.get("authentication_status"):
         
         st.subheader('QRコード生成')
         if all_products_list:
-            base_url = st.text_input("アプリのベースURLを入力", "http://localhost:8501", help="スマホでアクセスする場合は、ターミナルに表示されるNetwork URLを入力してください。")
+            base_url = st.text_input("アプリのベースURLを入力", "https://your-app-name.streamlit.app", help="デプロイ後に発行される、このアプリのURLを入力してください。")
             product_for_qr = st.selectbox(label="QRコードを生成する備品を選択", options=[f"{p['name']} ({p['product_code']})" for p in all_products_list], index=None, placeholder="備品を選択してください...")
             if product_for_qr:
                 selected_code = product_for_qr.split('(')[-1].replace(')', '')
@@ -103,41 +113,45 @@ if st.session_state.get("authentication_status"):
                 st.info("この画像を右クリックして保存し、印刷して使用してください。")
 
     else:
-        # --- ▼▼▼ 通常ユーザーのメインページ（在庫利用画面）を大幅に更新 ▼▼▼ ---
-        st.title('安田研究室　消耗品管理システム')
-        
-        # session_stateに 'scanned_code' がなければ初期化
-        if 'scanned_code' not in st.session_state:
-            st.session_state.scanned_code = None
+        # --- 通常ユーザーのメインページ（在庫利用画面） ---
+        st.sidebar.subheader("管理者用")
+        admin_password_input = st.sidebar.text_input("管理者パスワードを入力", type="password", key="admin_pass")
+        if st.sidebar.button("認証"):
+            stored_hashed_password = config.get('admin_password', '').encode('utf-8')
+            if stored_hashed_password and bcrypt.checkpw(admin_password_input.encode('utf-8'), stored_hashed_password):
+                st.session_state.admin_unlocked = True
+                st.rerun()
+            else:
+                st.sidebar.error("パスワードが違います。")
 
-        # QRコードリーダーのコールバック関数
+        # QRコードスキャナ
+        st.header('使用登録')
         def qr_code_callback(frame):
             img = frame.to_ndarray(format="bgr24")
             qr_detector = cv2.QRCodeDetector()
             data, bbox, straight_qrcode = qr_detector.detectAndDecode(img)
             if data:
-                # URLからproduct_codeを抽出
                 try:
                     parsed_url = urlparse(data)
                     query_params = parse_qs(parsed_url.query)
                     if 'product_code' in query_params:
                         st.session_state.scanned_code = query_params['product_code'][0]
                 except Exception:
-                    pass # 不正なQRコードの場合は何もしない
+                    pass
             return frame
 
-        # カメラコンポーネントの表示
-        webrtc_ctx = webrtc_streamer(
+        webrtc_streamer(
             key="qr-scanner",
             mode=WebRtcMode.SENDONLY,
             video_frame_callback=qr_code_callback,
             media_stream_constraints={"video": {"facingMode": "environment"}, "audio": False},
             async_processing=True,
         )
-
         st.markdown("---")
         
-        # スキャンされたコード、またはURLからのコードを取得
+        if 'scanned_code' not in st.session_state:
+            st.session_state.scanned_code = None
+        
         active_product_code = st.session_state.scanned_code or st.query_params.get("product_code")
 
         if active_product_code:
@@ -151,7 +165,7 @@ if st.session_state.get("authentication_status"):
                     if st.button(f"「{product['name']}」を1つ使用する", type="primary", use_container_width=True):
                         database.update_stock(product['id'], -1)
                         database.add_stock_history(product['id'], name, '使用', 1)
-                        st.session_state.scanned_code = None # 処理後にスキャン状態をリセット
+                        st.session_state.scanned_code = None
                         st.success(f"「{product['name']}」の使用を記録しました。")
                         st.balloons()
                         st.rerun()
@@ -159,17 +173,6 @@ if st.session_state.get("authentication_status"):
                     st.error(f"「{product['name']}」の在庫がありません。")
         else:
             st.info("上のカメラでQRコードをスキャンしてください。")
-        
-        # サイドバーの管理者認証
-        st.sidebar.subheader("管理者用")
-        admin_password_input = st.sidebar.text_input("管理者パスワードを入力", type="password", key="admin_pass")
-        if st.sidebar.button("認証"):
-            stored_hashed_password = config.get('admin_password', '').encode('utf-8')
-            if stored_hashed_password and bcrypt.checkpw(admin_password_input.encode('utf-8'), stored_hashed_password):
-                st.session_state.admin_unlocked = True
-                st.rerun()
-            else:
-                st.sidebar.error("パスワードが違います。")
 
 else:
     # --- ログインしていない場合の処理 ---
