@@ -1,6 +1,3 @@
-# ==============================================================================
-# app.py
-# ==============================================================================
 # Streamlitアプリケーションのメインファイル
 # -*- coding: utf-8 -*-
 import streamlit as st
@@ -107,7 +104,6 @@ if st.session_state["authentication_status"]:
         all_history = database.get_all_history()
         if all_history:
             df_full_history = pd.DataFrame(all_history)
-            # ▼▼▼ 表示する列を追加 ▼▼▼
             df_display_history = df_full_history[['timestamp', 'user_name', 'name', 'change_type', 'quantity']]
             df_display_history.columns = ['日時', '使用者', '品目名', '操作', '数量']
             st.dataframe(df_display_history, use_container_width=True)
