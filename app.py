@@ -149,7 +149,6 @@ if st.session_state["authentication_status"]:
         if 'scanned_code' not in st.session_state:
             st.session_state.scanned_code = None
 
-        # ▼▼▼ QRコードリーダーのコールバック関数を、nonlocalを使わない安全な形に戻しました ▼▼▼
         def qr_code_callback(frame: av.VideoFrame) -> av.VideoFrame:
             img = frame.to_ndarray(format="bgr24")
 
@@ -190,7 +189,6 @@ if st.session_state["authentication_status"]:
 
         if active_product_code:
             # 読み取りに成功したら、即座にリロードして表示を確定させる
-            # これにより、スマホでの動作が安定する
             if st.session_state.get('last_scanned_code') != active_product_code:
                 st.session_state.last_scanned_code = active_product_code
                 st.rerun()
@@ -199,9 +197,17 @@ if st.session_state["authentication_status"]:
             if not product:
                 st.error(f"商品コード '{active_product_code}' が見つかりません。")
             else:
+                # ▼▼▼ 在庫数を安全に整数に変換 ▼▼▼
+                try:
+                    current_stock = int(product['current_stock'])
+                except (ValueError, TypeError):
+                    current_stock = 0 # 変換できない場合は0として扱う
+
                 st.subheader(f"品目名: {product['name']}")
-                st.metric(label="現在の在庫数", value=f"{product['current_stock']} {product['unit']}")
-                if product['current_stock'] > 0:
+                st.metric(label="現在の在庫数", value=f"{current_stock} {product['unit']}")
+                
+                # ▼▼▼ 整数に変換した値で比較 ▼▼▼
+                if current_stock > 0:
                     if st.button(f"「{product['name']}」を1つ使用する", type="primary", use_container_width=True):
                         database.update_stock(product['id'], -1)
                         database.add_stock_history(product['id'], name, '使用', 1)
