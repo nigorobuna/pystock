@@ -89,3 +89,6 @@ toml.txt
 #秘密鍵（共有不要）
 ou-yasudalab-stock-14b75180fae9.json
 # OpenAIのAPIキー（共有不要）
+
+spreadsheetURL.txt
+# GoogleスプレッドシートのURL（共有不要）
