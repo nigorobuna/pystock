@@ -31,6 +31,8 @@ if st.session_state.get("just_registered"):
 admin_hashed_password = None
 # クラウド環境かどうかを判定
 if "google_creds_json" in st.secrets:
+    #ハッシュ化したパスワードをsecretから取得
+    # これはStreamlit Cloudや他のクラウド環境での実行
     admin_hashed_password = st.secrets.get("admin_password")
 else:
     # ローカル環境
