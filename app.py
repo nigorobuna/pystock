@@ -27,19 +27,20 @@ if st.session_state.get("just_registered"):
     del st.session_state["just_registered"]
 
 
-# --- ▼▼▼ 管理者パスワードを安全に読み込むロジックを追加 ▼▼▼ ---
+# --- ▼▼▼ 管理者・マスターPINパスワードを安全に読み込むロジックを追加 ▼▼▼ ---
 admin_hashed_password = None
+master_pin_hash = None
 # クラウド環境かどうかを判定
 if "google_creds_json" in st.secrets:
-    #ハッシュ化したパスワードをsecretから取得
-    # これはStreamlit Cloudや他のクラウド環境での実行
     admin_hashed_password = st.secrets.get("admin_password")
+    master_pin_hash = st.secrets.get("master_pin_hash")
 else:
     # ローカル環境
     if os.path.exists('config.yaml'):
         with open('config.yaml', 'r', encoding='utf-8') as file:
             config = yaml.load(file, Loader=SafeLoader)
         admin_hashed_password = config.get("admin_password")
+        master_pin_hash = config.get("master_pin_hash")
 
 # --- ▼▼▼ 認証ロジックを自作 ▼▼▼ ---
 
@@ -146,27 +147,7 @@ if st.session_state["authentication_status"]:
         
         st.title('安田研究室　消耗品管理システム')
         
-        # ▼▼▼ ここからメイン画面のレイアウトを変更 ▼▼▼
-        
-        # --- QRのない備品を使用するフォーム ---
-        with st.expander("QRコードのない備品を使用する"):
-            with st.form("misc_item_form", clear_on_submit=True):
-                misc_item_name = st.text_input("品目名を入力してください")
-                misc_quantity = st.number_input("使用した数量", min_value=1, step=1)
-                misc_submitted = st.form_submit_button("この内容で記録する")
-
-                if misc_submitted:
-                    if misc_item_name and misc_quantity > 0:
-                        database.add_misc_stock_history(name, misc_item_name, misc_quantity)
-                        st.success(f"「{misc_item_name}」の使用を記録しました。")
-                        st.balloons()
-                    else:
-                        st.warning("品目名と数量を入力してください。")
-        
-        st.divider()
-
-        # --- QRコードで登録 ---
-        st.header('QRコードで登録')
+        st.header('使用登録')
         
         if 'scanned_code' not in st.session_state:
             st.session_state.scanned_code = None
@@ -233,7 +214,7 @@ if st.session_state["authentication_status"]:
                 else:
                     st.error(f"「{product['name']}」の在庫がありません。")
         else:
-            st.info("QRコードをスキャンするか、上のメニューから手動で入力してください。")
+            st.info("上のカメラでQRコードをスキャンしてください。")
 
 
 # --- ログイン前の処理 ---
@@ -241,9 +222,10 @@ else:
     st.title('安田研究室　消耗品管理システム')
     login_tab, register_tab = st.tabs(["ログイン", "新規登録"])
 
+    # --- ログインタブ ---
     with login_tab:
         with st.form("login_form"):
-            email = st.text_input("ユーザーネーム")
+            email = st.text_input("メールアドレス")
             password = st.text_input("パスワード", type="password")
             submitted = st.form_submit_button("ログイン")
             if submitted:
@@ -253,13 +235,14 @@ else:
                     st.session_state.name = user['name']
                     st.rerun()
                 else:
-                    st.error("ユーザーネームまたはパスワードが間違っています。")
+                    st.error("メールアドレスまたはパスワードが間違っています。")
 
+    # --- 新規登録タブ ---
     with register_tab:
-        st.info('【ご注意】\n\n- **お名前:** ログイン後に表示される名前です。\n- **ユーザーネーム:** ログインIDとして使います。\n- **パスワード:** 6文字以上で設定してください。')
+        st.info('【ご注意】\n\n- **お名前:** ログイン後に表示される名前です。\n- **メールアドレス:** ログインIDとして使います。\n- **パスワード:** 6文字以上で設定してください。')
         with st.form("registration_form", clear_on_submit=True):
             name_reg = st.text_input("お名前")
-            email_reg = st.text_input("ユーザーネーム")
+            email_reg = st.text_input("メールアドレス")
             password_reg = st.text_input("パスワード", type="password")
             password_rep = st.text_input("パスワード（確認用）", type="password")
             pin_reg = st.text_input("共通の暗証番号 (4桁)", type="password", max_chars=4)
@@ -275,7 +258,7 @@ else:
                 elif password_reg != password_rep:
                     st.error("パスワードが一致しません。")
                 elif database.get_user(email_reg):
-                    st.error("このユーザーネームは既に使用されています。")
+                    st.error("このメールアドレスは既に使用されています。")
                 else:
                     hashed_password = bcrypt.hashpw(password_reg.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
                     database.add_user(name_reg, email_reg, hashed_password)
